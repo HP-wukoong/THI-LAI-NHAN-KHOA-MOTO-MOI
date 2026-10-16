@@ -2,7 +2,7 @@
 
 Công cụ quản lý **thi lại mô tô hạng A1** và **nhận hồ sơ các khóa mới dự kiến** của Công ty CP Đào tạo và Dịch vụ GTVT Bình Định – CSHN.
 
-**Mở ứng dụng:** https://hp-wukoong.github.io/thi-lai-nhan-khoa-moto-moi/
+**Mở ứng dụng:** https://hp-wukoong.github.io/THI-LAI-NHAN-KHOA-MOTO-MOI/
 
 ## Chức năng chính
 - Tra cứu học viên (gõ / quét QR CCCD), tính phần thi lại và lệ phí **theo đúng ngày thi của đợt**, hạn bảo lưu 12 tháng.

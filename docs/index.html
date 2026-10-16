@@ -4021,7 +4021,7 @@ const IS_WEB = /^https?:$/.test(location.protocol);
 let installEvt = null;
 function renderInstall(){ const el = $('#hdInstall'); if (!el) return;
   const standalone = matchMedia('(display-mode: standalone)').matches;
-  el.innerHTML = !IS_WEB ? `Đang mở bằng file trên máy. Nên dùng bản web: <b>https://hp-wukoong.github.io/thi-lai-nhan-khoa-moto-moi/</b> (tự cập nhật, cài như ứng dụng). Lần đầu mở bản web, chọn lại đúng thư mục dữ liệu là dữ liệu về đủ.`
+  el.innerHTML = !IS_WEB ? `Đang mở bằng file trên máy. Nên dùng bản web: <b>https://hp-wukoong.github.io/THI-LAI-NHAN-KHOA-MOTO-MOI/</b> (tự cập nhật, cài như ứng dụng). Lần đầu mở bản web, chọn lại đúng thư mục dữ liệu là dữ liệu về đủ.`
     : standalone ? '<span class="r-D">Đang chạy dạng ứng dụng đã cài.</span>'
     : installEvt ? `<button class="b p s" id="btnInstall">Cài tool này thành ứng dụng trên máy</button> <span class="muted">(có biểu tượng trên màn hình, mở như phần mềm)</span>`
     : 'Chrome / Edge: bấm biểu tượng “Cài đặt” ở thanh địa chỉ, hoặc menu ⋮ → “Cài đặt trang này dưới dạng ứng dụng”.';
