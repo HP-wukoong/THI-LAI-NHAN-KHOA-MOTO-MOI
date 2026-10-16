@@ -1,4 +1,4 @@
-"""Ghép mã nguồn trong src/ thành 1 file index.html (chạy được cả offline lẫn trên GitHub Pages).
+"""Ghép mã nguồn trong src/ thành 1 file docs/index.html (chạy được cả offline lẫn trên GitHub Pages).
 Chạy:  python build.py
 """
 import os, re
@@ -12,7 +12,7 @@ for k, v in rep.items():
     assert s.count(k) == 1, k
     s = s.replace(k, v, 1)
 ver = re.search(r"APP_VERSION = '([\d.]+)'", s).group(1)
-open(os.path.join(D, 'index.html'), 'w', encoding='utf-8').write(s)
+open(os.path.join(D, 'docs', 'index.html'), 'w', encoding='utf-8').write(s)
 sw = rd('sw.template.js').replace('__VERSION__', ver)
-open(os.path.join(D, 'sw.js'), 'w', encoding='utf-8').write(sw)
-print('Đã tạo index.html và sw.js, phiên bản', ver)
+open(os.path.join(D, 'docs', 'sw.js'), 'w', encoding='utf-8').write(sw)
+print('Đã tạo docs/index.html và docs/sw.js, phiên bản', ver)
