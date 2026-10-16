@@ -1,0 +1,17 @@
+# ===== KHÔNG BAO GIỜ đưa dữ liệu học viên / tiền thu lên GitHub =====
+so_thu*.json
+ket_qua_sat_hach*.json
+sao_luu/
+nhat_ky/
+dang_mo/
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+*.pdf
+DuLieu*/
+du_lieu*/
+# rác hệ thống
+.DS_Store
+Thumbs.db
+__pycache__/
