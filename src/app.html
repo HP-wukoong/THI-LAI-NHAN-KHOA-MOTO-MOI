@@ -534,9 +534,11 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
   </div>
   <div class="panel"><h2>Lưu trữ, sao lưu và khôi phục</h2>
     <div id="stPanel"></div>
-    <h3>Khôi phục về một thời điểm</h3>
-    <p class="small muted" style="margin-top:0">Các bản sao lưu tự động trong thư mục (theo giờ, ngày, tháng) và bản chụp trong trình duyệt. Bấm “Xem &amp; so sánh” để biết bản đó khác hiện tại thế nào trước khi khôi phục.</p>
-    <div class="row"><button class="b" id="rsLoad">Xem danh sách bản sao lưu</button></div>
+    <h3>Thư mục dữ liệu &amp; quản lý sao lưu</h3>
+    <div id="bmHead"></div>
+    <div class="row" style="margin-top:8px"><button class="b p" id="bmNow">Sao lưu ngay</button><button class="b" id="bmRefresh">Làm mới</button><button class="b" id="rsLoad">Xem tất cả bản sao lưu theo thời gian</button></div>
+    <div class="tw" id="bmTree" style="margin-top:10px"></div>
+    <div id="bmFiles" style="margin-top:10px"></div>
     <div class="tw" id="rsList" style="margin-top:8px;max-height:360px"></div>
   </div>
   <div class="panel"><h2>Kiểm tra toàn vẹn dữ liệu</h2>
@@ -633,7 +635,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
         <li>Cuối ca: <b>F9 Chốt quỹ</b> → đếm tiền theo mệnh giá → chốt → in biên bản BÊN GIAO / BÊN NHẬN.</li></ol>
       <h3>Kế toán</h3><ol><li>Nhận tiền theo biên bản chốt quỹ, đối chiếu chuyển khoản với sao kê theo mã giao dịch.</li><li>Hoàn / giảm tiền, Tổng kết tiền thi lại, Báo cáo định kỳ.</li></ol>
       <h3>Quản lý</h3><ol><li>Sau mỗi kỳ: nạp file kết quả của Hội đồng (Dữ liệu &amp; cài đặt), xem Đối soát kỳ thi.</li><li>Khai báo đợt thi, bảng giá, người dùng; xem <b>Kiểm tra toàn vẹn dữ liệu</b> hằng tuần; sao lưu Excel ra USB hằng tuần.</li><li>Sửa số tiền, xoá, huỷ chốt quỹ, khôi phục dữ liệu đều cần quyền quản lý và được ghi nhật ký.</li></ol>
-      <h3>Lưu trữ an toàn</h3><ul><li>Tool tự ghi vào thư mục đã chọn mỗi khi có thay đổi, kèm mã kiểm tra; tự sao lưu theo giờ (72 bản), theo ngày (180 bản), theo tháng (giữ mãi).</li><li>Nhiều máy cùng mở một thư mục: tool tự gộp, không ghi đè; số phiếu trùng được cấp lại và ghi nhật ký.</li><li>Khôi phục về một thời điểm: Dữ liệu &amp; cài đặt → Khôi phục.</li></ul>
+      <h3>Lưu trữ an toàn</h3><ul><li>Tool tự ghi vào thư mục đã chọn mỗi khi có thay đổi, kèm mã kiểm tra; tự sao lưu theo giờ (72 bản), theo ngày (180 bản), theo tháng (giữ mãi).</li><li>Nhiều máy cùng mở một thư mục: tool tự gộp, không ghi đè; số phiếu trùng được cấp lại và ghi nhật ký.</li><li>Xem thư mục dữ liệu, từng bản sao lưu, sao lưu ngay, khôi phục: Dữ liệu &amp; cài đặt → Thư mục dữ liệu &amp; quản lý sao lưu.</li></ul>
       <h3>Phiên bản</h3><div id="hdVer" class="small"></div>
       <h3>Cài đặt ứng dụng</h3><div id="hdInstall" class="small"></div>
       <h3>Phím tắt</h3><table><tr><td><b>F2</b></td><td>Tra cứu (quầy)</td></tr><tr><td><b>F4</b></td><td>Thu tiền học viên đang xem</td></tr><tr><td><b>F8</b></td><td>In phiếu thu học viên đang xem</td></tr><tr><td><b>F9</b></td><td>Chốt quỹ</td></tr><tr><td><b>F1</b></td><td>Hướng dẫn này</td></tr><tr><td><b>Esc</b></td><td>Đóng hộp thoại</td></tr></table>
@@ -1197,8 +1199,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.3.0', APP_DATE = '16/10/2026';
+const APP_VERSION = '3.4.0', APP_DATE = '16/10/2026';
 const CHANGELOG = [
+  ['3.4.0', '16/10/2026', ['Quản lý sao lưu: biết dữ liệu nằm ở thư mục nào, từng thư mục con chứa gì, giữ bao lâu, số file, dung lượng', 'Xem / tải về / so sánh / khôi phục / xoá từng file sao lưu; nút “Sao lưu ngay”; ghi đường dẫn đầy đủ của thư mục trên máy']],
   ['3.3.0', '16/10/2026', ['Bản web trên GitHub Pages: mở bằng địa chỉ web, cài như ứng dụng trên máy, chạy được khi mất mạng', 'Tự cập nhật bản mới khi có mạng; dữ liệu vẫn nằm trong thư mục trên máy (không đưa lên mạng)']],
   ['3.2.0', '16/10/2026', ['Đăng ký trước, nộp sau: nút Thu tiền luôn có ở danh sách đăng ký và trong hộp Sửa', 'Hộp thu tiền hiện từng khoản phải thu / đã thu / còn lại; thu nhiều lần được', 'Thu vượt số còn phải thu: chọn khoản để cộng phần vượt (có lý do, ghi nhật ký), không bị tính là sai quy tắc']],
   ['3.1.0', '13/10/2026', ['Mã QR trên phiếu thu in lớn (~6 cm) ở khung bên phải, quét được bằng điện thoại', 'Tải ảnh QR giữ độ nét cao, tự tìm và cho cắt đúng vùng mã QR; nút “Cắt lại vùng QR”', 'Sửa ngày / tên đợt thi; ô chọn đợt không còn giữ ngày cũ', 'Đánh số phiên bản; bản tool cũ không được ghi đè dữ liệu do bản mới ghi']],
@@ -1721,7 +1724,7 @@ function switchTab(t){
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   $('#pgTitle').textContent = PAGES[t][0]; $('#pgSub').textContent = PAGES[t][1];
   try { localStorage.setItem('soA1.tab', t); } catch(e){}
-  if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); }
+  if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); renderBkManager(); }
 }
 const curUser = () => getBy();
 function renderUser(){ const n = curUser(); $('#userName').textContent = (n || 'Chưa đặt tên người trực') + (typeof SESSION !== 'undefined' && SESSION.user ? ' · ' + ROLES[SESSION.user.role] : ''); $('#userAv').textContent = n ? n.trim().split(/\s+/).pop()[0].toUpperCase() : '?'; }

@@ -275,7 +275,7 @@ const FS = { dir: null, perm: 'none', last: null, err: null, t: null, supported:
   async pick(){
     if (!this.supported) return toast('Trình duyệt này không hỗ trợ. Hãy mở tool bằng Chrome hoặc Edge.');
     try { this.dir = await window.showDirectoryPicker({ id: 'soSatHachA1', mode: 'readwrite' }); } catch(e){ return; }
-    this.perm = 'granted'; await IDB.put('dir', this.dir); logA('Chọn thư mục lưu dữ liệu', '', '', this.dir.name); await this.sync();
+    this.perm = 'granted'; await IDB.put('dir', this.dir); { const p = dirPathOf(); if (p && !p.replace(/[\\/]+$/, '').toLowerCase().endsWith(this.dir.name.toLowerCase())) try { localStorage.removeItem('soA1.dirPath'); } catch(e){} } logA('Chọn thư mục lưu dữ liệu', '', '', this.dir.name); await this.sync();
   },
   async reconnect(){
     try { this.perm = await this.dir.requestPermission({ mode: 'readwrite' }); } catch(e){ this.perm = 'denied'; }
@@ -408,7 +408,7 @@ async function listBackups(){
   const out = [];
   if (FS.ready()) {
     const scan = async (path, kind) => { try { const d = await FS.sub(path); for await (const [n, h] of d.entries()) if (h.kind === 'file' && /^so_thu.*\.json$|^truoc_.*\.json$/.test(n)) { const f = await h.getFile(); out.push({ src: 'disk', path: path + '/' + n, name: n, kind, at: new Date(f.lastModified).toISOString(), size: f.size, h }); } } catch(e){} };
-    await scan('sao_luu/gio', 'Theo giờ'); await scan('sao_luu/ngay', 'Theo ngày'); await scan('sao_luu/thang', 'Theo tháng'); await scan('sao_luu', 'Khác'); await scan('sao_luu/truoc_khoi_phuc', 'Trước khôi phục');
+    await scan('sao_luu/gio', 'Theo giờ'); await scan('sao_luu/ngay', 'Theo ngày'); await scan('sao_luu/thang', 'Theo tháng'); await scan('sao_luu', 'Khác'); await scan('sao_luu/truoc_khoi_phuc', 'Trước khôi phục'); await scan('sao_luu/thu_cong', 'Thủ công');
   }
   for (const s of (await IDB.get('snapIdx')) || []) out.push({ src: 'idb', name: 'Bản chụp trong trình duyệt', kind: 'Trình duyệt', at: s.at, info: s });
   return out.sort((a, b) => b.at.localeCompare(a.at));
@@ -427,8 +427,9 @@ async function renderRestore(){
   el.innerHTML = bkList.length ? `<table><tr><th>Thời điểm</th><th>Loại</th><th>Tên</th><th class="num">Dung lượng</th><th></th></tr>${bkList.slice(0, 400).map((b, i) => `<tr><td class="mono">${new Date(b.at).toLocaleString('vi-VN')}</td><td>${esc(b.kind)}</td><td class="small mono">${esc(b.path || b.name)}</td><td class="num">${b.size ? (b.size / 1024).toFixed(0) + ' KB' : b.info ? b.info.regs + ' ĐK' : ''}</td><td class="act"><button class="b s" onclick="previewBackup(${i})">Xem & so sánh</button></td></tr>`).join('')}</table>`
     : '<div class="empty">Chưa có bản sao lưu nào.</div>';
 }
-window.previewBackup = async i => {
-  const b = bkList[i], r = await readBackup(b);
+window.previewBackup = i => previewBackupObj(bkList[i]);
+async function previewBackupObj(b){
+  const r = await readBackup(b);
   if (!r.ok) return blockMsg('Không mở được bản sao lưu', `<p>${esc(r.err)}</p>`);
   const d = migrate(r.data), a = stateSummary(d), c = stateSummary(S);
   const ids = arr => new Set((arr || []).map(x => x.id)), cr = ids(S.regs), br = ids(d.regs), cp = ids(S.pays), bp = ids(d.pays);
@@ -445,7 +446,7 @@ window.previewBackup = async i => {
       logA('KHÔI PHỤC DỮ LIỆU', '', '', `về bản ${new Date(b.at).toLocaleString('vi-VN')} (${b.path || b.name}) · ${a.regs} đăng ký, ${a.pays} khoản thu`);
       save(); rebuild(); renderRestore(); toast('Đã khôi phục');
     }), 'Khôi phục bản này');
-};
+}
 
 /* ---------- Kiểm tra toàn vẹn dữ liệu ---------- */
 function integrityReport(){
@@ -514,3 +515,73 @@ function renderStoragePanel(){
   </div>`;
 }
 window.renameMachine = () => dialog(`<h2>Tên máy này</h2><p class="small muted">Hiện trên phiếu chốt quỹ, nhật ký và khi nhiều máy cùng mở dữ liệu.</p><label class="f">Tên<input id="mnName" value="${esc(machineName())}"></label>`, () => { const n = C.norm($('#mnName').value); if (n) { try { localStorage.setItem('soA1.machineName', n); } catch(e){} logA('Đổi tên máy', '', '', n); save(); renderStoragePanel(); renderFs(); } }, 'Lưu');
+
+/* ---------- Quản lý thư mục dữ liệu & sao lưu ---------- */
+const BM_DIRS = [
+  ['', 'Thư mục gốc', 'Dữ liệu đang dùng: so_thu.json (đăng ký, tiền thu, đợt, khóa mới…), ket_qua_sat_hach.json (kết quả sát hạch đã nạp)', 'Luôn là bản mới nhất'],
+  ['sao_luu/gio', 'Sao lưu theo giờ', 'Tự ghi khi có thay đổi, mỗi giờ một file', 'Giữ 72 bản gần nhất (~3 ngày)'],
+  ['sao_luu/ngay', 'Sao lưu theo ngày', 'Trạng thái cuối mỗi ngày', 'Giữ 180 ngày'],
+  ['sao_luu/thang', 'Sao lưu theo tháng', 'Trạng thái cuối mỗi tháng', 'Giữ vĩnh viễn'],
+  ['sao_luu/thu_cong', 'Sao lưu thủ công', 'Tạo khi bấm “Sao lưu ngay”', 'Giữ vĩnh viễn'],
+  ['sao_luu/truoc_khoi_phuc', 'Trước khi khôi phục', 'Tool tự cất dữ liệu hiện tại trước mỗi lần khôi phục', 'Giữ vĩnh viễn'],
+  ['sao_luu', 'Bản ghi trước / trước nâng cấp', 'so_thu_ban_ghi_truoc.json (lần ghi liền trước), bản trước khi nâng cấp phiên bản', 'Tự thay'],
+  ['sao_luu/ket_qua', 'Kết quả sát hạch', 'Bản sao file kết quả đã nạp theo ngày', 'Giữ 15 bản'],
+  ['sao_luu/hong', 'File hỏng đã cất', 'File dữ liệu bị lỗi / bị sửa tay, cất lại để điều tra', 'Giữ vĩnh viễn'],
+  ['nhat_ky', 'Nhật ký theo tháng', 'Nhật ký thao tác cũ hơn ' + '6 tháng', 'Giữ vĩnh viễn']];
+const dirPathOf = () => { try { return localStorage.getItem('soA1.dirPath') || ''; } catch(e){ return ''; } };
+const fmtSize = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(0) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+async function subNoCreate(path){ let d = FS.dir; for (const p of path.split('/').filter(Boolean)) d = await d.getDirectoryHandle(p); return d; }
+async function listDir(path){ const out = []; try { const d = path ? await subNoCreate(path) : FS.dir; for await (const [n, h] of d.entries()) if (h.kind === 'file') { const f = await h.getFile(); out.push({ name: n, h, size: f.size, at: f.lastModified }); } } catch(e){ return null; } return out.sort((a, b) => b.at - a.at); }
+let bmCur = null;
+async function renderBkManager(){
+  const head = $('#bmHead'); if (!head) return;
+  const p = dirPathOf();
+  if (!FS.ready()) { head.innerHTML = `<div class="alert">${FS.dir ? `Thư mục <b>${esc(FS.dir.name)}</b> chưa được mở trong lần làm việc này. <button class="b s w" onclick="FS.reconnect().then(renderBkManager)">Mở dữ liệu</button>` : 'Chưa chọn thư mục lưu dữ liệu: sao lưu đang chỉ nằm trong trình duyệt của máy này. <button class="b s w" onclick="FS.pick().then(renderBkManager)">Chọn thư mục</button>'}</div>`; $('#bmTree').innerHTML = ''; $('#bmFiles').innerHTML = ''; return; }
+  head.innerHTML = `<div class="kinfo" style="margin-top:0"><div style="grid-column:span 2"><span>Thư mục dữ liệu trên máy này</span><b style="font-size:14px">${p ? esc(p) : esc(FS.dir.name)}</b><em>${p ? `<a href="#" onclick="event.preventDefault();copyDirPath()">Sao chép đường dẫn</a> · ` : ''}<a href="#" onclick="event.preventDefault();setDirPath()">${p ? 'Sửa đường dẫn' : 'Ghi đường dẫn đầy đủ (vd. D:\\TOOLS A1 CSHN\\DuLieu)'}</a></em></div>
+    <div><span>Tên thư mục</span><b style="font-size:14px">${esc(FS.dir.name)}</b><em>${esc(machineName())}</em></div>
+    <div><span>Lần lưu gần nhất</span><b style="font-size:14px">${FS.last ? FS.last.toLocaleString('vi-VN') : '—'}</b></div></div>`;
+  $('#bmTree').innerHTML = '<div class="small muted">Đang đọc thư mục…</div>';
+  const rows = [];
+  for (const [path, name, desc, keep] of BM_DIRS) { const fs = await listDir(path); const files = (fs || []).filter(f => path || /\.json$/.test(f.name));
+    rows.push({ path, name, desc, keep, n: files.length, size: files.reduce((a, f) => a + f.size, 0), last: files[0] ? files[0].at : 0, exists: !!fs }); }
+  const snaps = (await IDB.get('snapIdx')) || [];
+  $('#bmTree').innerHTML = `<table><tr><th>Thư mục con</th><th>Chứa gì</th><th>Lưu giữ</th><th class="num">Số file</th><th class="num">Dung lượng</th><th>Mới nhất</th><th></th></tr>
+    ${rows.map(r => `<tr class="${bmCur === r.path ? 'sel' : ''}"><td><b>${esc(r.name)}</b><div class="small mono muted">${esc((dirPathOf() || FS.dir.name).replace(/[\\/]+$/, ''))}${r.path ? '\\' + esc(r.path.replace(/\//g, '\\')) : ''}</div></td><td class="small" style="white-space:normal;min-width:220px">${esc(r.desc)}</td><td class="small">${esc(r.keep)}</td><td class="num">${r.exists ? r.n : '<span class="muted">chưa có</span>'}</td><td class="num">${r.n ? fmtSize(r.size) : ''}</td><td class="mono small">${r.last ? new Date(r.last).toLocaleString('vi-VN') : ''}</td><td>${r.n ? `<button class="b s" data-bm="${esc(r.path)}">Xem file</button>` : ''}</td></tr>`).join('')}
+    <tr><td><b>Bản chụp trong trình duyệt</b><div class="small muted">chỉ có trên máy này</div></td><td class="small" style="white-space:normal">Tự chụp mỗi 30 phút, dùng khi chưa có thư mục hoặc thư mục bị mất</td><td class="small">Giữ 48 bản</td><td class="num">${snaps.length}</td><td></td><td class="mono small">${snaps.length ? new Date(snaps[snaps.length - 1].at).toLocaleString('vi-VN') : ''}</td><td>${snaps.length ? '<button class="b s" data-bm="@idb">Xem</button>' : ''}</td></tr></table>`;
+  if (bmCur !== null) renderBmFiles(bmCur);
+}
+async function renderBmFiles(path){
+  bmCur = path; const el = $('#bmFiles');
+  if (path === '@idb') { const snaps = ((await IDB.get('snapIdx')) || []).slice().reverse();
+    el.innerHTML = `<h3>Bản chụp trong trình duyệt</h3><div class="tw"><table><tr><th>Thời điểm</th><th class="num">Đăng ký</th><th class="num">Khoản thu</th><th class="num">Tổng thu</th><th></th></tr>${snaps.map((s, i) => `<tr><td class="mono">${new Date(s.at).toLocaleString('vi-VN')}${s.note ? ' · ' + esc(s.note) : ''}</td><td class="num">${s.regs}</td><td class="num">${s.pays}</td><td class="num">${money(s.paid || 0)}</td><td class="act"><button class="b s" data-bmi="${i}">Xem &amp; so sánh</button></td></tr>`).join('')}</table></div>`;
+    el._snaps = snaps; return; }
+  const files = ((await listDir(path)) || []).filter(f => path || /\.json$/.test(f.name)), meta = BM_DIRS.find(d => d[0] === path) || ['', path];
+  const main = !path && /^(so_thu|ket_qua_sat_hach)\.json$/;
+  el.innerHTML = `<h3>${esc(meta[1])} · <span class="mono">${esc((dirPathOf() || FS.dir.name).replace(/[\\/]+$/, ''))}${path ? '\\' + esc(path.replace(/\//g, '\\')) : ''}</span> · ${files.length} file</h3>
+    <div class="tw" style="max-height:380px"><table><tr><th>Tên file</th><th>Ghi lúc</th><th class="num">Dung lượng</th><th></th></tr>${files.map((f, i) => `<tr><td class="mono small">${esc(f.name)}</td><td class="mono small">${new Date(f.at).toLocaleString('vi-VN')}</td><td class="num">${fmtSize(f.size)}</td>
+      <td class="act">${/^so_thu|^truoc_/.test(f.name) ? `<button class="b s" data-bmv="${i}">Xem &amp; so sánh</button>` : ''}<button class="b s" data-bmd="${i}">Tải về</button>${main && main.test(f.name) ? '' : `<button class="b s" data-bmx="${i}">Xoá</button>`}</td></tr>`).join('')}</table></div>`;
+  el._files = files; el._path = path;
+}
+$('#bmTree').addEventListener('click', e => { const b = e.target.closest('[data-bm]'); if (b) { renderBmFiles(b.dataset.bm); renderBkManager(); } });
+$('#bmFiles').addEventListener('click', async e => {
+  const el = $('#bmFiles'), b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.bmi != null) { const s = el._snaps[+b.dataset.bmi]; return previewBackupObj({ src: 'idb', name: 'Bản chụp trong trình duyệt', kind: 'Trình duyệt', at: s.at, info: s }); }
+  const f = el._files && el._files[+(b.dataset.bmv ?? b.dataset.bmd ?? b.dataset.bmx)]; if (!f) return;
+  const full = (el._path ? el._path + '/' : '') + f.name;
+  if (b.dataset.bmv != null) return previewBackupObj({ src: 'disk', path: full, name: f.name, kind: 'Thư mục', at: new Date(f.at).toISOString(), size: f.size, h: f.h });
+  if (b.dataset.bmd != null) { const file0 = await f.h.getFile(), file = file0 instanceof Blob ? file0 : new Blob([await file0.text()], { type: 'application/json' }), url = URL.createObjectURL(file), a = document.createElement('a'); a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000); logA('Tải file sao lưu', '', '', full); save(); return; }
+  if (b.dataset.bmx != null) requireAdmin('Xoá file sao lưu ' + full, () => dialog(`<h2>Xoá file sao lưu?</h2><p class="mono small">${esc(full)}</p><p class="small muted">Chỉ nên xoá khi chắc chắn không cần. Không khôi phục được.</p>`, async () => {
+    try { const d = el._path ? await subNoCreate(el._path) : FS.dir; await d.removeEntry(f.name); logA('Xoá file sao lưu', '', '', full); save(); toast('Đã xoá ' + f.name); } catch(err){ toast('Không xoá được: ' + err.message); }
+    renderBkManager(); }, 'Xoá'));
+});
+$('#bmRefresh').onclick = () => renderBkManager();
+$('#bmNow').onclick = async () => {
+  if (FS.ready()) { try { const pk = await packState(S), dir = await FS.sub('sao_luu/thu_cong'), name = `so_thu_thu_cong_${stamp()}.json`; await FS.writeText(dir, name, pk.text);
+      logA('Sao lưu thủ công', '', '', `sao_luu/thu_cong/${name} · ${S.regs.length} đăng ký, ${S.pays.length} khoản thu`); save(); bmCur = 'sao_luu/thu_cong'; await renderBkManager(); toast('Đã sao lưu: sao_luu\\thu_cong\\' + name); }
+    catch(err){ toast('Lỗi sao lưu: ' + err.message); } }
+  else { const at = nowISO(); await IDB.put('snap:' + at, JSON.stringify(S)); const idx = (await IDB.get('snapIdx')) || []; idx.push(Object.assign({ at, note: 'thủ công' }, stateSummary(S))); await IDB.put('snapIdx', idx); logA('Sao lưu thủ công (trình duyệt)', '', '', ''); save(); toast('Chưa có thư mục: đã chụp trong trình duyệt. Nên chọn thư mục lưu dữ liệu.'); renderBkManager(); }
+};
+window.setDirPath = () => dialog(`<h2>Đường dẫn thư mục dữ liệu</h2><p class="small">Vì lý do bảo mật, trình duyệt không cho trang web biết đường dẫn đầy đủ. Mở thư mục <b>${esc(FS.dir ? FS.dir.name : '')}</b> trong File Explorer, bấm vào thanh địa chỉ, sao chép rồi dán vào đây. Đường dẫn chỉ ghi trên máy này.</p><label class="f">Đường dẫn<input id="dpIn" value="${esc(dirPathOf())}" placeholder="D:\\TOOLS A1 CSHN\\DuLieu"></label>`, () => {
+  const v = $('#dpIn').value.trim(); if (v && FS.dir && !v.replace(/[\\/]+$/, '').toLowerCase().endsWith(FS.dir.name.toLowerCase())) return blockMsg('Đường dẫn không khớp', `<p>Đường dẫn phải kết thúc bằng tên thư mục đang mở: <b>${esc(FS.dir.name)}</b>.</p>`);
+  try { localStorage.setItem('soA1.dirPath', v); } catch(e){} renderBkManager(); renderHome && $('#t-home').classList.contains('on') && renderHome(); }, 'Lưu');
+window.copyDirPath = () => { const p = dirPathOf(); (navigator.clipboard ? navigator.clipboard.writeText(p) : Promise.reject()).then(() => toast('Đã sao chép: ' + p), () => toast(p)); };
