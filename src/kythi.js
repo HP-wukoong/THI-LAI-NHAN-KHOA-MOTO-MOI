@@ -32,37 +32,56 @@ const dotQrHtml = (date, size) => { const o = dotOf(date); if (o && o.qrMode ===
 /* ---------------- PHÂN BỔ TIỀN VÀO TỪNG KHOẢN ----------------
    Khoản có gắn mục (chuyển bảo lưu Hình / GPLX) vào đúng mục; phần còn lại theo thứ tự duyệt HS → LT → Hình → GPLX */
 function allocPays(r){
-  const keys = FEE_ORDER.filter(k => r.items[k]), due = {}, paid = {};
-  keys.forEach(k => { due[k] = r.items[k]; paid[k] = 0; });
+  const keys = FEE_ORDER.filter(k => r.items[k]), due = {}, paid = {}, bl = {};
+  keys.forEach(k => { due[k] = r.items[k]; paid[k] = 0; bl[k] = 0; });
   let adj = r.adjust || 0; for (const k of keys.slice().reverse()) { const d = Math.min(adj, due[k]); due[k] -= d; adj -= d; }
   let pool = 0;
   for (const p of S.pays) { if (p.regId !== r.id) continue;
-    if (p.item && due[p.item] != null && p.amount > 0) { const a = Math.min(p.amount, due[p.item] - paid[p.item]); paid[p.item] += a; pool += p.amount - a; } else pool += p.amount; }
+    if (p.item && due[p.item] != null && p.amount > 0) { const a = Math.min(p.amount, due[p.item] - paid[p.item]); paid[p.item] += a; if (p.method === 'BL') bl[p.item] += a; pool += p.amount - a; } else pool += p.amount; }
   for (const k of keys) { const a = Math.max(0, Math.min(pool, due[k] - paid[k])); paid[k] += a; pool -= a; }
-  return { keys, due, paid, extra: Math.max(0, pool) };
+  return { keys, due, paid, bl, extra: Math.max(0, pool) };
 }
 
-/* ---------------- TIỀN BẢO LƯU KHI VẮNG THI ----------------
-   Quy định: vắng thi thì lệ phí LT (60k) và phí duyệt hồ sơ (50k) KHÔNG hoàn; chỉ bảo lưu lệ phí Hình (70k, nếu chưa thi Hình) và phí thẻ GPLX (115k) đã nộp. */
+/* ---------------- TIỀN BẢO LƯU (VẮNG / TRƯỢT) ----------------
+   Quy định của trung tâm:
+   · Lệ phí LT (60k) và phí duyệt hồ sơ (50k): KHÔNG hoàn, KHÔNG bảo lưu.
+   · Lệ phí Hình (70k): chỉ bảo lưu khi VẮNG CẢ 2 PHẦN, hoặc TRƯỢT LÝ THUYẾT ở đợt thi từ 01/07/2026 (thi tuần tự nên không được thi Hình).
+     Đạt LT (hoặc chỉ đăng ký Hình) mà vắng Hình → không bảo lưu.
+   · Phí thẻ GPLX (115k) đã nộp: bảo lưu cho tới khi thi đạt (vắng hay trượt đều giữ).
+   Tiền ở đợt cũ đã bàn giao cho công ty → đợt sau chỉ thu phần học viên phải đóng thêm. */
 const creditsOf = cccd => (S.credits || []).filter(c => c.cccd === cccd && c.status === 'open');
 const creditLeft = (c, k) => Math.max(0, (c.items[k] || 0) - c.uses.filter(u => u.item === k).reduce((a, u) => a + u.amount, 0));
 const creditTotalLeft = c => Object.keys(c.items).reduce((a, k) => a + creditLeft(c, k), 0);
 const attemptAt = (cccd, date) => { const p = H.people.get(cccd); return p && p.attempts.find(a => a.date === date); };
+const SEQ_FROM = () => S.cfg.seqDate || '2026-07-01';
+function creditPlan(r, a){
+  if (!a || a.kq === 'D') return null;
+  const al = allocPays(r), items = {}, hTaken = a.h === 'D' || a.h === 'T', why = [];
+  if (al.paid.H && !hTaken) {
+    if (a.lt === 'V') { items.H = al.paid.H; why.push('vắng cả LT và Hình'); }
+    else if (a.lt === 'T' && r.examDate >= SEQ_FROM()) { items.H = al.paid.H; why.push('trượt LT nên chưa được thi Hình'); }
+  }
+  if (al.paid.GPLX115) { items.GPLX115 = al.paid.GPLX115; why.push('chưa đạt, giữ phí thẻ GPLX'); }
+  return Object.keys(items).length ? { items, reason: `${C.RLABEL[a.lt] || '–'} LT / ${C.RLABEL[a.h] || '–'} Hình: ${why.join('; ')}` } : null;
+}
 function syncCredits(){
   S.credits = S.credits || []; const made = [];
+  if (S.cfg.absentAsFail === false) return made; /* quy tắc "không thu lại phần vắng" đã chuyển lệ phí sẵn */
+  /* Khoản tạo theo quy định cũ (v3.6.0) mà chưa dùng: tính lại theo quy định mới */
+  for (const c of S.credits.slice()) { if (c.rule === 2 || c.status !== 'open' || !c.fromReg || c.manual) continue;
+    const r = S.regs.find(x => x.id === c.fromReg), pl = r && creditPlan(r, attemptAt(r.cccd, r.examDate)), used = {};
+    c.uses.forEach(u => used[u.item] = (used[u.item] || 0) + u.amount);
+    const items = Object.assign({}, (pl || {}).items || {}); for (const [k, v] of Object.entries(used)) items[k] = Math.max(items[k] || 0, v);
+    if (JSON.stringify(items) !== JSON.stringify(c.items)) logA('Tính lại tiền bảo lưu theo quy định mới', c.cccd, c.name, `${Object.entries(c.items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(', ')} → ${Object.entries(items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(', ') || 'không bảo lưu'}`);
+    if (!Object.keys(items).length) { S.credits.splice(S.credits.indexOf(c), 1); continue; }
+    c.items = items; c.reason = pl ? pl.reason : c.reason; c.rule = 2; }
   for (const r of S.regs) {
     if (r.kind !== 'lai' || !r.examDate) continue;
     const id = 'cr_' + r.id; if (S.credits.some(c => c.id === id)) continue;
-    if (S.regs.some(x => x !== r && x.cccd === r.cccd && x.kind === 'lai' && !x.cancelled && x.examDate > r.examDate)) continue; /* đã đăng ký đợt sau rồi */
-    const a = attemptAt(r.cccd, r.examDate); if (!a) continue;
-    if (!(a.lt === 'V' || a.h === 'V')) continue;
-    const al = allocPays(r), items = {};
-    if (a.h !== 'D' && a.h !== 'T' && al.paid.H) items.H = al.paid.H;
-    if (al.paid.GPLX115) items.GPLX115 = al.paid.GPLX115;
-    if (!Object.keys(items).length) continue;
-    const c = { id, cccd: r.cccd, name: r.name, fromReg: r.id, fromExam: r.examDate, items, uses: [], status: 'open', reason: 'Vắng thi', createdAt: nowISO(), by: curUser() || 'tự động' };
+    const pl = creditPlan(r, attemptAt(r.cccd, r.examDate)); if (!pl) continue;
+    const c = { id, cccd: r.cccd, name: r.name, fromReg: r.id, fromExam: r.examDate, items: pl.items, uses: [], status: 'open', reason: pl.reason, rule: 2, createdAt: nowISO(), by: curUser() || 'tự động' };
     S.credits.push(c); made.push(c);
-    logA('Bảo lưu tiền vắng thi', r.cccd, r.name, `đợt ${fd(r.examDate)}: ${Object.entries(items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(', ')} (LT và phí duyệt hồ sơ không hoàn)`);
+    logA('Bảo lưu tiền', r.cccd, r.name, `đợt ${fd(r.examDate)}: ${Object.entries(pl.items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(', ')} · ${pl.reason} (LT và phí duyệt hồ sơ không hoàn)`);
   }
   return made;
 }
@@ -103,7 +122,7 @@ window.voidCredit = id => requireAdmin('Huỷ khoản bảo lưu', () => { const
 const pendingMoney = () => S.regs.filter(r => r.kind === 'lai' && !r.moneyAction && examOutcome(r).k === 'none' && regTotals(r).paid > 0);
 window.moneyAction = (regId, type) => { const r = S.regs.find(x => x.id === regId), t = regTotals(r);
   if (type === 'credit') return requireRole('ketoan', 'Bảo lưu toàn bộ tiền đã nộp', () => { const al = allocPays(r), items = {}; for (const k of al.keys) if (al.paid[k]) items[k] = al.paid[k];
-    S.credits.push({ id: 'cr_' + r.id, cccd: r.cccd, name: r.name, fromReg: r.id, fromExam: r.examDate, items, uses: [], status: 'open', reason: 'Không có tên trong kết quả', createdAt: nowISO(), by: curUser() });
+    S.credits.push({ id: 'cr_' + r.id, cccd: r.cccd, name: r.name, fromReg: r.id, fromExam: r.examDate, items, uses: [], status: 'open', reason: 'Không có tên trong kết quả', manual: true, rule: 2, createdAt: nowISO(), by: curUser() });
     r.moneyAction = { type, at: nowISO(), by: curUser() }; logA('Bảo lưu toàn bộ tiền (không có tên)', r.cccd, r.name, money(t.paid)); save(); renderAll(); });
   if (type === 'refund') return refundDlg(r.id);
   if (type === 'keep') return dialog(`<h2>Giữ, không xử lý tiền?</h2><p>${esc(r.name)} · đã nộp ${money(t.paid)} đ · đợt ${fd(r.examDate)}</p><label class="f">Ghi chú<input id="maWhy"></label>`, () => { r.moneyAction = { type, at: nowISO(), by: curUser(), note: $('#maWhy').value }; logA('Giữ tiền, không xử lý', r.cccd, r.name, $('#maWhy').value); save(); renderAll(); }, 'Xác nhận');
@@ -112,11 +131,11 @@ function renderCredits(){
   const el = $('#crTable'); if (!el) return;
   const all = (S.credits || []).slice().sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.createdAt.localeCompare(a.createdAt));
   const open = all.filter(c => c.status === 'open'), sum = open.reduce((a, c) => a + creditTotalLeft(c), 0);
-  $('#crSum').innerHTML = `<b>${open.length}</b> học viên đang có tiền bảo lưu, tổng <b>${money(sum)} đ</b> · quy định: vắng thi không hoàn LT ${money(S.cfg.prices.LT)} và phí duyệt ${money(S.cfg.prices.DUYET)}; bảo lưu Hình ${money(S.cfg.prices.H)} (nếu chưa thi Hình) và thẻ GPLX ${money(S.cfg.prices.GPLX)} đã nộp, tự trừ khi đăng ký lại.`;
+  $('#crSum').innerHTML = `<b>${open.length}</b> học viên đang có tiền bảo lưu, tổng <b>${money(sum)} đ</b>. Quy định: LT ${money(S.cfg.prices.LT)} và phí duyệt ${money(S.cfg.prices.DUYET)} không hoàn; lệ phí Hình ${money(S.cfg.prices.H)} chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ ${fd(SEQ_FROM())}); phí thẻ GPLX ${money(S.cfg.prices.GPLX)} đã nộp giữ đến khi thi đạt. Đợt sau chỉ thu phần học viên đóng thêm.`;
   el.innerHTML = all.length ? `<table><tr><th>Học viên</th><th>CCCD</th><th>Từ đợt</th><th>Lý do</th><th class="num">Bảo lưu</th><th class="num">Đã dùng</th><th class="num">Còn lại</th><th>Tình trạng</th><th></th></tr>${all.map(c => { const tot = Object.values(c.items).reduce((a, b) => a + b, 0), left = creditTotalLeft(c), ar = activeReg(c.cccd);
     return `<tr class="${c.status === 'void' ? 'kdel' : ''}"><td><a href="#" data-q="${c.cccd}">${esc(c.name)}</a></td><td class="mono">${esc(mask(c.cccd))}</td><td class="mono">${fd(c.fromExam)}</td><td class="small">${esc(c.reason || '')}<div class="muted">${Object.entries(c.items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(' · ')}</div></td><td class="num">${money(tot)}</td><td class="num">${money(tot - left)}</td><td class="num"><b>${money(left)}</b></td>
-      <td>${c.status === 'open' ? '<span class="pill p-part">Đang bảo lưu</span>' : c.status === 'used' ? '<span class="pill p-paid">Đã dùng hết</span>' : c.status === 'refunded' ? '<span class="pill p-cxl">Đã hoàn</span>' : '<span class="pill p-due">Đã huỷ</span>'}${c.uses.length ? `<div class="small muted">${c.uses.map(u => { const r = S.regs.find(x => x.id === u.regId); return `→ đợt ${fd(r && r.examDate)} ${ITEM[u.item]} ${money(u.amount)}`; }).join('<br>')}</div>` : ''}</td>
-      <td class="act">${c.status === 'open' ? `${ar && ar.id !== c.fromReg ? `<button class="b s p" onclick="useCredit('${ar.id}')">Trừ vào đợt ${fd(ar.examDate)}</button>` : ''}<button class="b s" onclick="refundCredit('${c.id}')">Hoàn tiền</button><button class="b s" onclick="voidCredit('${c.id}')">Huỷ</button>` : ''}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chưa có khoản bảo lưu nào. Tool tự tạo khi nạp kết quả có người vắng thi đã nộp lệ phí Hình / thẻ GPLX.</div>';
+      <td>${c.status === 'open' ? '<span class="pill p-part">Đang bảo lưu</span>' : c.status === 'used' ? '<span class="pill p-paid">Đã dùng hết</span>' : c.status === 'refunded' ? '<span class="pill p-cxl">Đã hoàn</span>' : c.status === 'passed' ? `<span class="pill p-paid">Đã thi đạt ${fd(c.passed)}</span>` : '<span class="pill p-due">Đã huỷ</span>'}${c.uses.length ? `<div class="small muted">${c.uses.map(u => { const r = S.regs.find(x => x.id === u.regId); return `→ đợt ${fd(r && r.examDate)} ${ITEM[u.item]} ${money(u.amount)}`; }).join('<br>')}</div>` : ''}</td>
+      <td class="act">${c.status === 'open' ? `${ar && ar.id !== c.fromReg ? `<button class="b s p" onclick="useCredit('${ar.id}')">Trừ vào đợt ${fd(ar.examDate)}</button>` : ''}<button class="b s" onclick="refundCredit('${c.id}')">Hoàn tiền</button><button class="b s" onclick="voidCredit('${c.id}')">Huỷ</button>` : ''}</td></tr>`; }).join('')}</table>` : '<div class="empty">Chưa có khoản bảo lưu nào. Tool tự tạo khi nạp kết quả: người vắng cả 2 phần / trượt LT đã nộp lệ phí Hình, người chưa đạt đã nộp phí thẻ GPLX.</div>';
   const pm = pendingMoney();
   $('#pmTable').innerHTML = pm.length ? `<div class="alert" style="margin-bottom:8px">${pm.length} người đã đăng ký, đã nộp tiền nhưng <b>không có tên</b> trong file kết quả của Hội đồng (bị loại hồ sơ, sai đợt…). Chọn cách xử lý tiền cho từng người.</div><table><tr><th>Học viên</th><th>Đợt</th><th class="num">Đã nộp</th><th></th></tr>${pm.map(r => `<tr><td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a></td><td class="mono">${fd(r.examDate)}</td><td class="num">${money(regTotals(r).paid)}</td><td class="act"><button class="b s p" onclick="moneyAction('${r.id}','credit')">Bảo lưu toàn bộ sang đợt sau</button><button class="b s" onclick="moneyAction('${r.id}','refund')">Hoàn tiền</button><button class="b s" onclick="moneyAction('${r.id}','keep')">Giữ, không xử lý</button></td></tr>`).join('')}</table>` : '<div class="empty">Không có khoản tiền nào cần xử lý.</div>';
 }
@@ -153,7 +172,7 @@ window.transferDlg = from0 => {
       <label class="f">Sang đợt${dotSelect('trTo', to)}</label><label class="f">Ngày đăng ký<input type="date" id="trReg" value="${todayISO()}"></label></div>
     <div class="chips" style="margin-top:8px"><label class="chip"><input type="checkbox" class="trK" value="T" checked> Trượt</label><label class="chip"><input type="checkbox" class="trK" value="V" checked> Vắng</label><label class="chip"><input type="checkbox" class="trK" value="none"> Không có tên trong KQ</label></div>
     <div id="trPrev" class="tw" style="margin-top:10px;max-height:46vh"></div>
-    <p class="small muted">Phần thi và lệ phí được tính lại theo lần thi mới nhất và ngày thi của đợt mới. Tiền bảo lưu (vắng thi) tự trừ vào khoản Hình / thẻ GPLX nếu đợt mới có thu. Đăng ký mới ở trạng thái chưa nộp, thu tiền sau.</p>`, () => {
+    <p class="small muted">Phần thi và lệ phí được tính lại theo lần thi mới nhất và ngày thi của đợt mới. Tiền bảo lưu tự trừ vào khoản Hình / thẻ GPLX nếu đợt mới có thu; học viên chỉ đóng phần thêm. Đăng ký mới ở trạng thái chưa nộp, thu tiền sau.</p>`, () => {
     const plan = transferPlan($('#trFrom').value, $('#trTo').value, [...document.querySelectorAll('.trK:checked')].map(i => i.value), $('#trReg').value).filter(x => x.ok);
     if (!plan.length) return toast('Không có ai để chuyển');
     let n = 0, sum = 0, cr = 0; const made = [];
@@ -164,7 +183,7 @@ window.transferDlg = from0 => {
   }, 'Chuyển sang đợt mới');
   const prev = () => { const plan = transferPlan($('#trFrom').value, $('#trTo').value, [...document.querySelectorAll('.trK:checked')].map(i => i.value), $('#trReg').value), ok = plan.filter(x => x.ok);
     $('#trPrev').innerHTML = `<div class="small" style="margin-bottom:6px"><b>${ok.length}</b> người sẽ được chuyển · phải thu ${money(ok.reduce((a, x) => a + x.fee, 0))} đ${ok.some(x => x.credit) ? ` · trừ bảo lưu ${money(ok.reduce((a, x) => a + x.credit, 0))} đ` : ''}${plan.length - ok.length ? ` · bỏ qua ${plan.length - ok.length}` : ''}</div>
-      <table><tr><th>Họ tên</th><th>KQ đợt cũ</th><th>Thi lại</th><th class="num">Lệ phí</th><th class="num">Trừ bảo lưu</th><th>Ghi chú</th></tr>${plan.map(x => `<tr class="${x.ok ? '' : 'kdel'}"><td>${esc(x.r.name)}</td><td>${esc(x.o.l)}</td><td>${x.ok ? ndLabel(x.need) : ''}</td><td class="num">${x.ok ? money(x.fee) : ''}</td><td class="num">${x.credit ? money(x.credit) : ''}</td><td class="small">${esc(x.why)}${x.hold ? `${x.why ? ' · ' : ''}giữ bảo lưu ${money(x.hold)} (Hình / thẻ) để trừ khi thi Hình` : ''}</td></tr>`).join('')}</table>`; };
+      <table><tr><th>Họ tên</th><th>KQ đợt cũ</th><th>Thi lại</th><th class="num">Lệ phí</th><th class="num">Trừ bảo lưu</th><th>Ghi chú</th></tr>${plan.map(x => `<tr class="${x.ok ? '' : 'kdel'}"><td>${esc(x.r.name)}</td><td>${esc(x.o.l)}</td><td>${x.ok ? ndLabel(x.need) : ''}</td><td class="num">${x.ok ? money(x.fee) : ''}</td><td class="num">${x.credit ? money(x.credit) : ''}</td><td class="small">${esc(x.why)}${x.hold ? `${x.why ? ' · ' : ''}giữ bảo lưu ${money(x.hold)} (Hình trừ khi thi Hình; thẻ GPLX giữ đến khi đạt)` : ''}</td></tr>`).join('')}</table>`; };
   ['trFrom', 'trTo', 'trReg'].forEach(i => $('#' + i).addEventListener('input', prev)); document.querySelectorAll('.trK').forEach(i => i.addEventListener('change', prev)); prev();
 };
 
@@ -176,7 +195,7 @@ function afterResultsLoaded(dates){
   if (!rows.length) return;
   const pm = pendingMoney().filter(r => dates.includes(r.examDate)).length;
   dialog(`<h2>Kết quả các đợt vừa nạp</h2><div class="tw"><table><tr><th>Đợt</th><th class="num">Đăng ký</th><th class="num">Đạt</th><th class="num">Trượt</th><th class="num">Vắng</th><th class="num">Không có tên</th><th class="num">Tỷ lệ đạt</th><th class="num">Tiền bảo lưu</th></tr>${rows.map(x => `<tr><td>${esc(dotLabel(x.d))}</td><td class="num">${x.n}</td><td class="num r-D">${x.D}</td><td class="num r-T">${x.T}</td><td class="num">${x.V}</td><td class="num">${x.none}</td><td class="num">${x.n ? (x.D / x.n * 100).toFixed(1) + '%' : ''}</td><td class="num">${x.crN ? x.crN + ' người · ' + money(x.crSum) : ''}</td></tr>`).join('')}</table></div>
-    ${made.length ? `<p class="small">Đã tự bảo lưu tiền cho <b>${made.length}</b> người vắng thi (chỉ lệ phí Hình và thẻ GPLX đã nộp; LT và phí duyệt không hoàn). Xem ở tab Sổ thu → Tiền bảo lưu.</p>` : ''}
+    ${made.length ? `<p class="small">Đã tự bảo lưu tiền cho <b>${made.length}</b> người (Hình: vắng cả 2 phần / trượt LT; thẻ GPLX: chưa đạt; LT và phí duyệt không hoàn). Xem ở tab Sổ thu → Tiền bảo lưu.</p>` : ''}
     ${pm ? `<div class="alert">${pm} người không có tên trong kết quả nhưng đã nộp tiền: xử lý ở tab Sổ thu → Tiền cần xử lý.</div>` : ''}
     <p class="small muted">Bấm nút bên dưới để đăng ký luôn người Trượt / Vắng vào đợt tiếp theo.</p>`, () => transferDlg(rows[rows.length - 1].d), 'Chuyển Trượt/Vắng sang đợt mới');
 }
@@ -283,7 +302,7 @@ function henHtml(r){
       Lệ phí: ${al.keys.map(k => `${ITEM[k]} ${money(al.due[k])}`).join(' + ')} = <b>${money(t.due)} đ</b> · đã nộp ${money(t.paid)} đ · <b>${t.left ? 'CÒN PHẢI NỘP ' + money(t.left) + ' đ' : 'ĐÃ NỘP ĐỦ'}</b>
     </div>
     ${t.left ? `<div style="width:46mm;flex:none;text-align:center">${qrSvg(vietqr(t.left, payNote(r)), '44mm')}<div style="font-size:10.5px;line-height:1.3;margin-top:1mm">Quét để chuyển <b>${money(t.left)} đ</b><br>${esc(bankName(b.bin))} · ${esc(b.acc)}<br>${esc(b.owner)}<br>Nội dung: <b>${esc(qrNote(payNote(r)))}</b></div></div>` : ''}</div>
-    <table style="width:100%;margin-top:3mm"><tr><td style="width:55%;font-size:11.5px"><i>Vắng thi không được hoàn lệ phí lý thuyết và phí duyệt hồ sơ; lệ phí Hình và thẻ GPLX đã nộp được bảo lưu sang đợt sau.</i></td><td style="text-align:center"><b>Người lập</b><br><i>(Ký, ghi rõ họ tên)</i><div style="height:11mm"></div>${esc(curUser() || '')}</td></tr></table></div>`;
+    <table style="width:100%;margin-top:3mm"><tr><td style="width:55%;font-size:11.5px"><i>Lệ phí lý thuyết và phí duyệt hồ sơ không hoàn. Lệ phí Hình chỉ bảo lưu khi vắng cả 2 phần hoặc trượt lý thuyết; phí thẻ GPLX đã nộp được giữ đến khi thi đạt.</i></td><td style="text-align:center"><b>Người lập</b><br><i>(Ký, ghi rõ họ tên)</i><div style="height:11mm"></div>${esc(curUser() || '')}</td></tr></table></div>`;
 }
 window.printHen = ids => { const regs = ids.map(id => S.regs.find(r => r.id === id)).filter(r => r && !r.cancelled); if (!regs.length) return toast('Không có đăng ký nào để in');
   regs.forEach(r => (r.henPrinted = r.henPrinted || []).push({ at: nowISO(), by: curUser() })); logA('In giấy hẹn sát hạch', '', '', `${regs.length} người`); save();
@@ -341,7 +360,8 @@ window.printBienBan = () => {
     ${items.map((k, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${TK_ITEMS[k]}</td><td style="text-align:center">${ag.it[k].n}</td><td style="text-align:right">${money(price(k))}</td><td style="text-align:right">${money(ag.it[k].amt)}</td></tr>`).join('')}
     <tr><td></td><td colspan="3"><b>TỔNG CỘNG</b></td><td style="text-align:right"><b>${money(total)}</b></td></tr></table>
     <p>Số tiền bằng chữ: <b><i>${numWords(total)}</i></b>.</p>
-    ${(() => { const ids = new Set(rows.map(x => x.r.id)), bl = S.pays.filter(p => p.method === 'BL' && ids.has(p.regId)).reduce((a, p) => a + p.amount, 0); return bl ? `<p style="font-size:12.5px">Trong đó <b>${money(bl)} đ</b> là tiền bảo lưu chuyển từ đợt trước (học viên vắng thi đã nộp lệ phí Hình / thẻ GPLX), không thu thêm tiền mặt.</p>` : ''; })()}
+    ${ag.bl ? `<p style="font-size:12.5px">Ngoài số tiền trên, <b>${ag.nBl}</b> học viên được trừ tiền bảo lưu tổng <b>${money(ag.bl)} đ</b> (đã nộp và đã bàn giao ở đợt trước) — <b>không bàn giao lại</b>.</p>` : ''}
+    ${(() => { const cr = (S.credits || []).filter(c => (dot === '*' || c.fromExam === dot) && c.status !== 'void'); const sm = cr.reduce((a, c) => a + Object.values(c.items).reduce((x, y) => x + y, 0), 0); return sm ? `<p style="font-size:12.5px">Trong tiền đã nộp ${dot === '*' ? '' : 'của đợt này '}có <b>${money(sm)} đ</b> của <b>${cr.length}</b> học viên vắng / chưa đạt được <b>bảo lưu</b> sang đợt sau (lệ phí Hình, thẻ GPLX): đợt sau không thu lại khoản này.</p>` : ''; })()}
     <p style="font-size:12.5px">Kèm theo: danh sách chi tiết ${ag.n} học viên (xuất từ “Tổng kết tiền thi lại”). Biên bản lập thành 02 bản, mỗi bên giữ 01 bản.</p>
     <table style="width:100%;margin-top:6mm"><tr><td style="text-align:center;width:50%"><b>BÊN GIAO</b><br><i>(Ký, ghi rõ họ tên)</i></td><td style="text-align:center"><b>BÊN NHẬN</b><br><i>(Ký, ghi rõ họ tên)</i></td></tr><tr><td style="height:24mm;text-align:center;vertical-align:bottom">${esc(curUser() || '')}</td><td></td></tr></table>`);
   logA('In biên bản nộp lệ phí', '', '', `${dl} · ${money(total)} đ`); save();
@@ -363,7 +383,8 @@ function renderBankPanel(){
     S.cfg.bank = nb; S.cfg.henPlace = C.norm($('#bkPlace').value); S.cfg.henDocs = C.norm($('#bkDocs').value); save(); renderBankPanel(); renderDots(); toast('Đã lưu'); });
 }
 function creditRecalc(){ for (const c of S.credits || []) { c.uses = S.pays.filter(p => p.creditId === c.id).map(p => ({ regId: p.regId, item: p.item, amount: p.amount, payId: p.id, at: p.createdAt }));
-  if (c.status === 'open' || c.status === 'used') c.status = creditTotalLeft(c) ? 'open' : 'used'; } }
+  if (c.status === 'open' || c.status === 'used') c.status = creditTotalLeft(c) ? 'open' : 'used';
+  if (c.status === 'open') { const ev = H.ev.get(c.cccd); if (ev && ev.status === 'DAT' && ev.passDate && ev.passDate > c.fromExam) { c.status = 'passed'; c.passed = ev.passDate; } } } }
 $('#tlBulkHen').onclick = () => printHen([...tlSel]);
 $('#tlBulkMsg').onclick = () => msgDlg([...tlSel], 'lich');
 $('#tlTransfer').onclick = () => transferDlg($('#tlDot').value);
