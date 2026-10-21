@@ -1,16 +1,17 @@
 /* =====================================================================
    TIỀN & CHỨNG TỪ: số phiếu thu/chi liên tục, hình thức nộp, chốt quỹ ca
    ===================================================================== */
-const PM = { TM: 'Tiền mặt', CK: 'Chuyển khoản' };
+const PM = { TM: 'Tiền mặt', CK: 'Chuyển khoản', BL: 'Chuyển tiền bảo lưu' };
+const isCash = p => p.method !== 'BL'; /* khoản chuyển bảo lưu không phải tiền thực thu: không vào quỹ, không chốt ca */
 const allPaysEver = () => S.pays.concat(S.trash.filter(t => t.type === 'pay').map(t => t.pay), ...S.trash.filter(t => t.type === 'reg').map(t => t.pays || []));
 function nextNo(kind, date){
-  S.seq = S.seq || { PT: {}, PC: {} }; S.seq[kind] = S.seq[kind] || {};
+  S.seq = S.seq || { PT: {}, PC: {}, BL: {} }; S.seq[kind] = S.seq[kind] || {};
   const y = (date || todayISO()).slice(0, 4), n = Math.max(S.seq[kind][y] || 0, maxNo(allPaysEver(), kind, y)) + 1;
   S.seq[kind][y] = n; return `${kind}-${y}-${String(n).padStart(4, '0')}`;
 }
 /* Mọi khoản thu / chi mới đều đi qua đây: đánh số phiếu, hình thức, người thu, thời điểm, máy */
 function addPay(p){
-  p.id = p.id || uid(); p.amount = Math.round(+p.amount || 0); p.method = p.method === 'CK' ? 'CK' : 'TM'; if (p.method === 'TM') delete p.txn;
+  p.id = p.id || uid(); p.amount = Math.round(+p.amount || 0); p.method = p.method === 'CK' || p.method === 'BL' ? p.method : 'TM'; if (p.method !== 'CK') delete p.txn;
   p.by = p.by || curUser() || ''; p.createdAt = nowISO(); p.machine = MACHINE; p.no = nextNo(PAY_KIND(p), p.date);
   S.pays.push(p); return p;
 }
@@ -36,9 +37,9 @@ function guardClosed(payIds, date, by, label, fn){
   if (!hit.length && !back) return fn();
   requireAdmin(`${label} (${hit.length ? 'khoản đã chốt quỹ ' + [...new Set(hit.map(c => c.no))].join(', ') : 'ghi vào ngày ' + fd(date) + ' đã chốt quỹ'})`, fn);
 }
-function pendingPays(cashier, upto){ const closed = new Set(liveClosings().flatMap(c => c.payIds)); return S.pays.filter(p => !closed.has(p.id) && (p.by || '(không ghi)') === cashier && p.date <= upto).sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || '').localeCompare(b.createdAt || '')); }
-function unclosedDays(){ const closed = new Set(liveClosings().flatMap(c => c.payIds)), m = new Map(); for (const p of S.pays) if (!closed.has(p.id)) { const k = p.date + '|' + (p.by || '(không ghi)'); const o = m.get(k) || { date: p.date, cashier: p.by || '(không ghi)', n: 0, total: 0 }; o.n++; o.total += p.amount; m.set(k, o); } return [...m.values()].sort((a, b) => a.date.localeCompare(b.date)); }
-function paySum(list){ const s = { tmIn: 0, tmOut: 0, ckIn: 0, ckOut: 0, n: list.length }; for (const p of list) { const k = (p.method === 'CK' ? 'ck' : 'tm') + (p.amount >= 0 ? 'In' : 'Out'); s[k] += Math.abs(p.amount); } s.tm = s.tmIn - s.tmOut; s.ck = s.ckIn - s.ckOut; s.total = s.tm + s.ck; return s; }
+function pendingPays(cashier, upto){ const closed = new Set(liveClosings().flatMap(c => c.payIds)); return S.pays.filter(p => isCash(p) && !closed.has(p.id) && (p.by || '(không ghi)') === cashier && p.date <= upto).sort((a, b) => a.date.localeCompare(b.date) || (a.createdAt || '').localeCompare(b.createdAt || '')); }
+function unclosedDays(){ const closed = new Set(liveClosings().flatMap(c => c.payIds)), m = new Map(); for (const p of S.pays) if (isCash(p) && !closed.has(p.id)) { const k = p.date + '|' + (p.by || '(không ghi)'); const o = m.get(k) || { date: p.date, cashier: p.by || '(không ghi)', n: 0, total: 0 }; o.n++; o.total += p.amount; m.set(k, o); } return [...m.values()].sort((a, b) => a.date.localeCompare(b.date)); }
+function paySum(list){ const s = { tmIn: 0, tmOut: 0, ckIn: 0, ckOut: 0, n: list.length }; for (const p of list) { if (!isCash(p)) continue; const k = (p.method === 'CK' ? 'ck' : 'tm') + (p.amount >= 0 ? 'In' : 'Out'); s[k] += Math.abs(p.amount); } s.tm = s.tmIn - s.tmOut; s.ck = s.ckIn - s.ckOut; s.total = s.tm + s.ck; return s; }
 const DENOMS = [500000, 200000, 100000, 50000, 20000, 10000, 5000, 2000, 1000];
 const regOfPay = p => S.regs.find(r => r.id === p.regId) || (S.trash.find(t => t.type === 'reg' && t.reg.id === p.regId) || {}).reg || {};
 const payContent = p => { const r = regOfPay(p); return r.kind === 'moi' ? 'Nạp hồ sơ mới' : r.parts ? 'Thi lại ' + partsLbl(r) + (r.examDate ? ' · đợt ' + fd(r.examDate) : '') : ''; };

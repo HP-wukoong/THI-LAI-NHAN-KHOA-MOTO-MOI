@@ -29,14 +29,14 @@ function sha256(str){
 }
 
 /* ---------- Phiên bản dữ liệu & nâng cấp ---------- */
-const PAY_KIND = p => p.amount < 0 ? 'PC' : 'PT';
+const PAY_KIND = p => p.method === 'BL' ? 'BL' : p.amount < 0 ? 'PC' : 'PT';
 function maxNo(list, kind, year){ let m = 0; const re = new RegExp(`^${kind}-${year}-(\\d+)$`); for (const p of list) { const x = re.exec(p && p.no || ''); if (x) m = Math.max(m, +x[1]); } return m; }
 function migrate(s){
   if (!s || typeof s !== 'object') return s;
   const from = s.schema || 1;
   s.regs = s.regs || []; s.pays = s.pays || []; s.trash = s.trash || []; s.dots = s.dots || []; s.withdrawals = s.withdrawals || []; s.log = s.log || [];
   s.contacts = s.contacts || {}; s.scanAddr = s.scanAddr || {}; s.khoa = s.khoa || []; s.closings = s.closings || []; s.users = s.users || []; s.seq = s.seq || { PT: {}, PC: {} };
-  s.seq.PT = s.seq.PT || {}; s.seq.PC = s.seq.PC || {};
+  s.seq.PT = s.seq.PT || {}; s.seq.PC = s.seq.PC || {}; s.seq.BL = s.seq.BL || {}; s.credits = s.credits || [];
   /* Khoản thu cũ: hình thức mặc định tiền mặt, đánh số phiếu theo thứ tự ngày thu */
   const all = s.pays.concat(s.trash.filter(t => t.type === 'pay').map(t => t.pay), ...s.trash.filter(t => t.type === 'reg').map(t => t.pays || []));
   all.forEach((p, i) => { if (!p.method) p.method = 'TM'; if (!p.createdAt) p.createdAt = (p.date || '2000-01-01') + 'T00:00:00.000Z'; if (p._ord == null) p._ord = i; });
@@ -90,7 +90,7 @@ async function unpackState(text){
 }
 
 /* ---------- Gộp 3 chiều (base = bản chung lần trước, L = máy này, R = thư mục) ---------- */
-const MERGE_KEYS = { regs: 'id', pays: 'id', withdrawals: 'id', trash: 'id', khoa: 'id', closings: 'id', users: 'id', dots: 'date' };
+const MERGE_KEYS = { regs: 'id', pays: 'id', withdrawals: 'id', trash: 'id', khoa: 'id', closings: 'id', users: 'id', credits: 'id', dots: 'date' };
 /* Xoá chỉ được công nhận khi có "dấu xoá" (tomb) ghi rõ; bản ghi chỉ thiếu ở một phía thì GIỮ LẠI → không bao giờ mất dữ liệu do 2 máy ghi chồng */
 const maxMap = (a, b) => { const o = Object.assign({}, a || {}); for (const [k, v] of Object.entries(b || {})) if (!o[k] || v > o[k]) o[k] = v; return o; };
 function merge3(base, L, R){
@@ -118,7 +118,7 @@ function merge3(base, L, R){
   /* Cấu hình, mật khẩu: máy nào đổi so với base thì lấy máy đó */
   for (const col of ['cfg', 'sec']) out[col] = same(L[col], base[col]) ? clone(R[col] ?? null) : clone(L[col] ?? null);
   /* Bộ đếm số phiếu: lấy lớn nhất */
-  out.seq = { PT: {}, PC: {} }; for (const k of ['PT', 'PC']) for (const src of [L.seq, R.seq]) for (const [y, n] of Object.entries((src || {})[k] || {})) out.seq[k][y] = Math.max(out.seq[k][y] || 0, n);
+  out.seq = { PT: {}, PC: {}, BL: {}, CQ: {} }; for (const k of ['PT', 'PC', 'BL', 'CQ']) for (const src of [L.seq, R.seq]) for (const [y, n] of Object.entries((src || {})[k] || {})) out.seq[k][y] = Math.max(out.seq[k][y] || 0, n);
   /* Số phiếu trùng (2 máy cùng cấp số) → cấp lại số cho phiếu tạo sau */
   const byNo = new Map();
   for (const p of out.pays.slice().sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''))) {
@@ -127,6 +127,9 @@ function merge3(base, L, R){
     byNo.set(p.no, p);
   }
   out.savedAt = L.savedAt > (R.savedAt || '') ? L.savedAt : R.savedAt;
+  /* Tiền bảo lưu: số đã dùng luôn tính lại từ các phiếu chuyển bảo lưu thực có (tránh lệch khi 2 máy cùng dùng) */
+  for (const c of out.credits || []) { c.uses = (out.pays || []).filter(p => p.creditId === c.id).map(p => ({ regId: p.regId, item: p.item, amount: p.amount, payId: p.id, at: p.createdAt }));
+    if (c.status === 'open' || c.status === 'used') { const left = Object.keys(c.items).reduce((a, k) => a + Math.max(0, c.items[k] - c.uses.filter(u => u.item === k).reduce((x, u) => x + u.amount, 0)), 0); c.status = left ? 'open' : 'used'; } }
   return { data: out, notes };
 }
 
@@ -465,7 +468,7 @@ function integrityReport(){
   const seen = new Map(); for (const p of S.pays) { if (p.no && seen.has(p.no)) add('bad', 'Số phiếu', `Số ${p.no} bị dùng 2 lần`); seen.set(p.no, p); }
   const usedEver = new Set(allPays.map(p => p.no).filter(Boolean));
   const purged = new Set((S.log || []).filter(l => /Xoá vĩnh viễn/.test(l.action)).map(l => (l.detail.match(/(P[TC]-\d{4}-\d+)/g) || [])).flat());
-  for (const k of ['PT', 'PC']) for (const [y, n] of Object.entries(S.seq[k] || {})) { const miss = []; for (let i = 1; i <= n; i++) { const no = `${k}-${y}-${String(i).padStart(4, '0')}`; if (!usedEver.has(no) && !purged.has(no)) miss.push(no); } if (miss.length) add('warn', 'Số phiếu', `${miss.length} số ${k} năm ${y} không còn bản ghi (đã xoá vĩnh viễn hoặc gộp): ${miss.slice(0, 8).join(', ')}${miss.length > 8 ? '…' : ''}`); }
+  for (const k of ['PT', 'PC', 'BL']) for (const [y, n] of Object.entries(S.seq[k] || {})) { const miss = []; for (let i = 1; i <= n; i++) { const no = `${k}-${y}-${String(i).padStart(4, '0')}`; if (!usedEver.has(no) && !purged.has(no)) miss.push(no); } if (miss.length) add('warn', 'Số phiếu', `${miss.length} số ${k} năm ${y} không còn bản ghi (đã xoá vĩnh viễn hoặc gộp): ${miss.slice(0, 8).join(', ')}${miss.length > 8 ? '…' : ''}`); }
   const inTrash = allPays.filter(p => !S.pays.includes(p)).length; if (inTrash) add('info', 'Số phiếu', `${inTrash} phiếu đang nằm trong thùng rác (vẫn giữ số)`);
   for (const r of S.regs) { const t = regTotals(r); if (t.paid < 0) add('bad', 'Đăng ký', `${r.name}: tổng thu âm ${money(t.paid)}`); if (!r.cancelled && t.paid > t.due) add('warn', 'Đăng ký', `${r.name} (đợt ${fd(r.examDate)}): thu thừa ${money(t.paid - t.due)} đ`); if (r.kind === 'lai' && typeof regIssues === 'function' && regIssues(r).length) add('warn', 'Đăng ký', `${r.name}: ${regIssues(r).join('; ')}`); }
   /* chốt quỹ: số liệu đã chốt phải còn nguyên */

@@ -6,6 +6,7 @@ D = os.path.dirname(os.path.abspath(__file__))
 rd = lambda p: open(os.path.join(D, p), encoding='utf-8').read()
 s = rd('src/app.html')
 rep = {'/*SHEETJS*/': rd('vendor/xlsx.bundle.js').replace('</script', '<\\/script'),
+       '/*QRLIB*/': rd('vendor/qrcode.js').replace('</script', '<\\/script'), '/*KYTHI*/': rd('src/kythi.js'),
        '/*CORE*/': rd('src/core.js'), '/*STORE*/': rd('src/store.js'), '/*KHOA*/': rd('src/khoa.js'),
        '/*MONEY*/': rd('src/money.js'), '/*MGMT*/': rd('src/mgmt.js')}
 for k, v in rep.items():

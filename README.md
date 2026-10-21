@@ -32,6 +32,7 @@ Vẫn có thể tải file `docs/index.html` về máy và mở trực tiếp nh
 - Mã nguồn ở `src/` (`app.html`, `core.js` tính phí & bảo lưu, `store.js` lưu trữ, `money.js` tiền & chốt quỹ, `mgmt.js` quản lý, `khoa.js` khóa mới).
 - Sửa `src/…`, tăng `APP_VERSION` và ghi `CHANGELOG` trong `src/app.html`, rồi chạy `python build.py` để tạo lại `docs/index.html` và `docs/sw.js`, commit và push. GitHub Pages tự cập nhật.
 - Thư viện Excel: `vendor/xlsx.bundle.js` (xlsx-js-style, giấy phép Apache-2.0).
+- Mã QR: `vendor/qrcode.js` (qrcode-generator của Kazuhiko Arase, giấy phép MIT); QR theo chuẩn VietQR / NAPAS 247, vẽ dạng vector SVG.
 
 ## Bật GitHub Pages (một lần)
 Settings → Pages → *Build and deployment* → Source: **Deploy from a branch** → Branch: **main**, thư mục **/docs** → Save.

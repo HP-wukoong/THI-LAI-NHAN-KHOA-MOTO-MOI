@@ -171,7 +171,13 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
   @page{size:A4 portrait;margin:0}
   body.pfull #printArea{height:auto;min-height:0;overflow:visible;border-bottom:0;padding:12mm 15mm}
   html.bigtext{zoom:1!important}
+  .henpage{height:135mm;box-sizing:border-box;padding:3mm 0;border-bottom:1px dashed #999;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+  .henpage:nth-child(2n){border-bottom:0;break-after:page;page-break-after:always;padding-top:6mm}
+  .henpage:last-child{break-after:auto;page-break-after:auto}
   body *{visibility:hidden} #printArea,#printArea *{visibility:visible}
+  body > *:not(#printArea){display:none!important}
+  html,body{height:auto!important;min-height:0!important;background:#fff!important}
+  #printArea{position:static!important}
   #printArea{display:block;position:absolute;left:0;top:0;width:210mm;height:148mm;overflow:hidden;box-sizing:border-box;color:#000;background:#fff;font:13.5px/1.45 "Times New Roman",serif;padding:9mm 14mm 6mm;border-bottom:1px dashed #999}
   #printArea th,#printArea td{color:#000;background:#fff!important;position:static;white-space:normal;text-transform:none;letter-spacing:0;font:inherit;border-bottom:0;vertical-align:top}
   #printArea table.k th,#printArea table.k td{border:1px solid #000;padding:4px 8px}
@@ -259,6 +265,9 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <button class="b s p" id="tlBulkPay" disabled>Thu đủ các dòng đã chọn</button>
       <button class="b s" id="tlBulkDot" disabled>Đổi đợt thi…</button>
       <button class="b s" id="tlBulkDel" disabled>Xóa các dòng đã chọn</button>
+      <button class="b s" id="tlBulkHen" disabled>In giấy hẹn</button>
+      <button class="b s" id="tlBulkMsg" disabled>Soạn tin nhắn…</button>
+      <span style="flex:1"></span><button class="b s p" id="tlTransfer" title="Đăng ký lại cho người Trượt / Vắng của đợt đã có kết quả">Chuyển Trượt/Vắng sang đợt mới…</button>
     </div>
   </div>
   <div class="panel"><div class="tw" id="tlTable"></div></div>
@@ -338,6 +347,12 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     </div>
   </div>
   <div class="panel"><div class="tw" id="thuTable"></div></div>
+  <div class="panel"><h2>Đối chiếu sao kê ngân hàng</h2>
+    <p class="small muted">Tải sao kê tài khoản (file Excel tải từ iPay / VietinBank eFAST hoặc ngân hàng khác) → tool đọc các khoản <b>tiền vào</b>, tìm số CCCD trong nội dung chuyển khoản, ghép với học viên còn nợ rồi ghi thu hàng loạt (hình thức chuyển khoản, mã giao dịch lấy từ sao kê, không ghi trùng).</p>
+    <div class="row"><label class="b p" style="cursor:pointer">Chọn file sao kê…<input type="file" id="skFile" accept=".xlsx,.xls,.csv" hidden></label><button class="b" id="skSample">Tải file sao kê mẫu</button></div>
+    <div id="skOut"></div></div>
+  <div class="panel"><h2>Tiền bảo lưu (học viên vắng thi)</h2><div id="crSum" class="small" style="margin-bottom:8px"></div><div class="tw" id="crTable"></div></div>
+  <div class="panel"><h2>Tiền cần xử lý (không có tên trong kết quả)</h2><div id="pmTable"></div></div>
   <div class="panel"><h2>Nhật ký thu / hoàn (không sửa, chỉ ghi thêm)</h2><div class="tw" id="payTable"></div></div>
 </section>
 
@@ -476,7 +491,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <label class="chip"><input type="checkbox" value="H" checked> Lệ phí hình</label>
       <label class="chip"><input type="checkbox" value="GPLX115" checked> Phí cấp thẻ GPLX</label>
     </div>
-    <div class="row" style="margin-top:12px"><button class="b p" id="tkExport">Xuất bảng tổng kết (Excel)</button>
+    <div class="row" style="margin-top:12px"><button class="b p" id="tkExport">Xuất bảng tổng kết (Excel)</button><button class="b" id="tkBB" onclick="printBienBan()">In biên bản bàn giao lệ phí</button>
       <span class="small muted">Tiền đã thu được chia vào từng khoản theo thứ tự: duyệt HS → LT → Hình → GPLX. Đăng ký đã hủy chỉ tính nếu còn giữ tiền.</span></div>
   </div>
   <div class="kpis" id="tkKpi"></div>
@@ -532,6 +547,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     <p class="small muted" style="margin-top:10px">Cách tính: thi lại phần nào thì thu lệ phí phần đó. Từ đợt 01/07/2026 thi tuần tự: trượt hoặc vắng LT thì không được thi Hình, nên chỉ thu lại LT (lệ phí Hình đã nộp được giữ). Thu thêm phí cấp GPLX khi ngày căn cứ trước mốc tương ứng: thu lại LT trước 01/07/2026, thu lại Hình trước 25/07/2026, thu lại cả 2 trước 01/07/2026. Riêng đợt 02/07/2026 thi lại luôn cộng phí GPLX. Mọi lượt thi lại đều cộng phí duyệt hồ sơ. Bảo lưu tính riêng cho LT và Hình, kể từ ngày <b>Đạt</b> phần đó; dòng “X” không gia hạn. Phần đã hết hạn tính đến ngày sát hạch dự kiến phải thi lại. Thay đổi ở đây chỉ áp dụng cho lượt đăng ký <b>mới</b>; số tiền của lượt đã đăng ký được giữ nguyên.</p>
     <div class="alert" style="margin-top:8px">Mốc 25/07/2026, cách xử lý người vắng thi và thời hạn bảo lưu là quy tắc trung tâm đang áp dụng. Hãy đối chiếu quy định hiện hành trước khi thu tiền hoặc trả hồ sơ.</div>
   </div>
+  <div class="panel"><h2>Tài khoản nhận tiền · mã QR · giấy hẹn</h2><div id="bankPanel"></div></div>
   <div class="panel"><h2>Lưu trữ, sao lưu và khôi phục</h2>
     <div id="stPanel"></div>
     <h3>Thư mục dữ liệu &amp; quản lý sao lưu</h3>
@@ -670,6 +686,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
 <div id="printArea"></div>
 
 <script>/*SHEETJS*/</script>
+<script>/*QRLIB*/</script>
 <script>/*CORE*/</script>
 <script>
 "use strict";
@@ -684,7 +701,7 @@ function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); 
 
 /* ---------------- STATE ---------------- */
 const LS = 'soSatHachA1.v1';
-let S = { cfg: Object.assign({}, C.DEFAULT_CFG, { prices: Object.assign({}, C.DEFAULT_CFG.prices) }), regs: [], pays: [], trash: [], dots: [], withdrawals: [], log: [], contacts: {}, scanAddr: {}, sec: null, savedAt: null, schema: 2, seq: { PT: {}, PC: {} }, closings: [], users: [], khoa: [] };
+let S = { cfg: Object.assign({}, C.DEFAULT_CFG, { prices: Object.assign({}, C.DEFAULT_CFG.prices) }), regs: [], pays: [], trash: [], dots: [], withdrawals: [], log: [], contacts: {}, scanAddr: {}, sec: null, savedAt: null, schema: 2, seq: { PT: {}, PC: {}, BL: {} }, closings: [], users: [], khoa: [], credits: [] };
 let H = { attempts: [], issues: [], files: [], addrBook: {}, fees: {}, people: new Map(), ev: new Map(), dup: 0, at: null };
 function adoptState(s){
   if (!s) return;
@@ -715,7 +732,7 @@ function rebuild(){
 }
 async function readFiles(files){
   const msg = $('#loadMsg'); msg.innerHTML = 'Đang đọc…';
-  let added = 0, issues = [], notes = [];
+  let added = 0, issues = [], notes = []; const loadedDates = new Set();
   for (const f of files) {
     const buf = await f.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array', cellDates: false, raw: true });
@@ -731,7 +748,7 @@ async function readFiles(files){
       const r = C.parseRows(rows, `${f.name} › ${sn}`);
       if (!r.ok) {
         if (book) { notes.push(`${sn}: lấy ${Object.keys(book).length.toLocaleString('vi-VN')} địa chỉ (sổ nơi cư trú)`); continue; } notes.push(r.noDate ? `${sn}: bỏ qua (không tìm thấy ngày sát hạch)` : `${sn}: bỏ qua (không thấy cột Số định danh/LT/Hình)`); continue; }
-      H.attempts.push(...r.attempts); issues.push(...r.issues); added += r.attempts.length;
+      H.attempts.push(...r.attempts); issues.push(...r.issues); added += r.attempts.length; if (r.examDate) loadedDates.add(r.examDate);
       const cnt = k => r.attempts.filter(a=>a.kq===k).length;
       const had = r.examDate && H.attempts.some(a => a.date === r.examDate && !r.attempts.includes(a));
       notes.push(`${sn}: ${r.examDate ? `<b>kỳ ${fd(r.examDate)}</b>${r.code ? ' (' + esc(r.code) + ')' : ''}, ` : ''}${r.attempts.length.toLocaleString('vi-VN')} thí sinh${r.examDate ? ` · Đạt ${cnt('D')} · Trượt ${cnt('T')} · Vắng ${cnt('V')}` : ''}${r.skippedBlank ? `, bỏ ${r.skippedBlank} dòng trống` : ''}, ${r.issues.length} lỗi${had ? ' · <i>kỳ này đã có, dùng bản vừa nạp</i>' : ''}`);
@@ -746,6 +763,7 @@ async function readFiles(files){
   await IDB.put('hist', { attempts: H.attempts, issues: H.issues, files: H.files, addrBook: H.addrBook, fees: H.fees, at: H.at });
   logA('Nạp file kết quả', '', '', files.map(f=>f.name).join(', ') + ` · ${added} dòng`); save();
   await FS.writeHist();
+  afterResultsLoaded([...loadedDates]); renderAll();
 }
 
 /* ---------------- HELPERS ---------------- */
@@ -791,11 +809,14 @@ function renderDots(){
       <div class="hd"><b>${fd(o.date)}</b>${done ? '<span class="pill p-DAT">Đã có kết quả</span>' : o.date < t ? '<span class="pill p-VANG">Chờ nạp KQ</span>' : '<span class="pill p-THILAI">Sắp thi</span>'}</div>
       <div class="dotname">${o.name ? esc(o.name) : '<span class="muted">(chưa đặt tên)</span>'}</div>
       <div class="small">${lai} người thi lại${owe ? ` · <span class="r-T">${owe} chưa nộp đủ</span>` : ''}${S.cfg.examDate === o.date ? ' · <b>đang dùng tính bảo lưu</b>' : ''}</div>
-      <div class="qrzone" tabindex="0" data-qr="${o.date}" title="Bấm vào rồi Ctrl+V để dán ảnh QR">${o.qr ? `<img src="${o.qr}" alt="QR đợt ${fd(o.date)}">` : '<span>Bấm vào đây rồi nhấn <b>Ctrl+V</b> để dán ảnh mã QR</span>'}</div>
+      ${o.time || o.place ? `<div class="small">${o.time ? 'Có mặt ' + esc(o.time) : ''}${o.time && o.place ? ' · ' : ''}${esc(o.place || '')}</div>` : ''}
+      <div class="qrzone" tabindex="0" data-qr="${o.date}" title="Bấm vào rồi Ctrl+V để dán ảnh QR khác">${o.qrMode === 'image' && o.qr ? `<img src="${o.qr}" alt="QR đợt ${fd(o.date)}">` : `<div style="width:150px">${qrSvg(vietqr(0, ''), '150px')}</div>`}</div>
+      <div class="small muted" style="text-align:center">${o.qrMode === 'image' && o.qr ? 'Đang dùng ảnh QR tải lên' : 'QR VietQR tự tạo · ' + esc(bankName(bankCfg().bin)) + ' ' + esc(bankCfg().acc) + ' · in sắc nét'}</div>
       <div class="row">
-        <label class="b s" style="cursor:pointer">${o.qr ? 'Đổi ảnh QR' : 'Chọn file QR'}<input type="file" accept="image/*" hidden data-qrfile="${o.date}"></label>
-        ${o.qr ? `<button class="b s" onclick="recropQr('${o.date}')">Cắt lại vùng QR</button><button class="b s" data-qrdel="${o.date}">Xoá QR</button>` : ''}
+        <label class="b s" style="cursor:pointer">${o.qr ? 'Đổi ảnh QR' : 'Dùng ảnh QR riêng…'}<input type="file" accept="image/*" hidden data-qrfile="${o.date}"></label>
+        ${o.qr ? `${o.qrMode === 'image' ? `<button class="b s p" data-qrmode="${o.date}">Dùng QR tự tạo (nét hơn)</button><button class="b s" onclick="recropQr('${o.date}')">Cắt lại vùng QR</button>` : `<button class="b s" data-qrmode="${o.date}">Dùng ảnh đã tải</button>`}<button class="b s" data-qrdel="${o.date}">Xoá ảnh QR</button>` : ''}
         ${S.cfg.examDate !== o.date ? `<button class="b s" data-dotuse="${o.date}">Tính bảo lưu theo đợt này</button>` : ''}
+        ${done && lai ? `<button class="b s p" onclick="transferDlg('${o.date}')">Chuyển Trượt/Vắng…</button>` : lai ? `<button class="b s" onclick="printHen(S.regs.filter(r => r.kind === 'lai' && !r.cancelled && r.examDate === '${o.date}').map(r => r.id))">In giấy hẹn cả đợt</button>` : ''}
         <button class="b s p" data-dotedit="${o.date}">Sửa đợt</button>
         <button class="b s" data-dotdel="${o.date}">Xoá đợt</button>
       </div></div>`; }).join('')}</div>` : '<div class="empty">Chưa có đợt nào. Nhập ngày sát hạch ở trên rồi bấm “Thêm đợt”.</div>';
@@ -849,7 +870,7 @@ function qrCropDlg(img, date){
     const maxSide = 900, sc = Math.min(1, maxSide / Math.max(sel.w, sel.h)), cv = document.createElement('canvas');
     cv.width = Math.max(1, Math.round(sel.w * sc)); cv.height = Math.max(1, Math.round(sel.h * sc));
     const g = cv.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); g.imageSmoothingEnabled = sc < 1; g.drawImage(img, sel.x, sel.y, sel.w, sel.h, 0, 0, cv.width, cv.height);
-    o.qr = cv.toDataURL('image/png'); o.qrPx = cv.width + '×' + cv.height;
+    o.qr = cv.toDataURL('image/png'); o.qrMode = 'image'; o.qrPx = cv.width + '×' + cv.height;
     logA('Đổi mã QR đợt', '', '', `${fd(date)} · ${o.qrPx} px`); save(); renderDots(); toast(`Đã lưu mã QR đợt ${fd(date)} (${o.qrPx} px)`);
   }, 'Lưu mã QR');
   const c = $('#qcC'), g = c.getContext('2d'), pv = $('#qcP'), pg = pv.getContext('2d');
@@ -872,7 +893,8 @@ $('#dotList').addEventListener('change', e => {
 });
 $('#dotList').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.qrdel) { dotOf(b.dataset.qrdel).qr = ''; logA('Xoá mã QR đợt', '', '', fd(b.dataset.qrdel)); save(); renderDots(); }
+  if (b.dataset.qrmode) { const o = dotOf(b.dataset.qrmode); o.qrMode = o.qrMode === 'image' ? 'auto' : 'image'; logA('Đổi loại mã QR đợt', '', '', `${fd(o.date)}: ${o.qrMode === 'image' ? 'ảnh tải lên' : 'QR tự tạo'}`); save(); renderDots(); return; }
+  if (b.dataset.qrdel) { dotOf(b.dataset.qrdel).qrMode = 'auto'; dotOf(b.dataset.qrdel).qr = ''; logA('Xoá mã QR đợt', '', '', fd(b.dataset.qrdel)); save(); renderDots(); }
   if (b.dataset.dotuse) { S.cfg.examDate = b.dataset.dotuse; save(); rebuild(); toast('Hạn bảo lưu giờ tính đến ngày ' + fd(S.cfg.examDate)); }
   if (b.dataset.dotedit) return editDot(b.dataset.dotedit);
   if (b.dataset.dotdel) { const d = b.dataset.dotdel, n = S.regs.filter(r => r.examDate === d).length;
@@ -883,15 +905,16 @@ $('#dotList').addEventListener('click', e => {
 function editDot(d0, vals, err){
   const o = dotOf(d0); if (!o) return;
   const regs = S.regs.filter(r => r.examDate === d0), live = regs.filter(r => !r.cancelled);
-  const v = vals || { date: o.date, name: o.name || '' };
+  const v = vals || { date: o.date, name: o.name || '', time: o.time || '', place: o.place || '' };
   dialog(`<h2>Sửa đợt ${fd(d0)}</h2>${err ? `<div class="alert bad">${err}</div>` : ''}
     <div class="row"><label class="f">Ngày sát hạch<input type="date" id="edDate" value="${v.date}"></label>
     <label class="f" style="flex:1;min-width:240px">Tên / ghi chú đợt<input id="edName" value="${esc(v.name)}" placeholder="vd: A1 CSHN Tháng 11"></label></div>
+    <div class="row" style="margin-top:8px"><label class="f">Giờ có mặt<input id="edTime" value="${esc(v.time || '')}" placeholder="vd: 6h30"></label><label class="f" style="flex:1;min-width:240px">Địa điểm sát hạch<input id="edPlace" value="${esc(v.place || '')}" placeholder="${esc(S.cfg.henPlace || 'vd: Sân sát hạch …')}"></label></div>
     ${regs.length ? `<div class="alert" style="margin-top:10px">Đợt này có <b>${regs.length}</b> đăng ký${live.length !== regs.length ? ` (${regs.length - live.length} đã hủy)` : ''}. Nếu đổi ngày, tất cả được chuyển sang ngày mới, phần thi và lệ phí được kiểm tra lại theo hạn bảo lưu tại ngày mới.</div>` : ''}`, () => {
-    const n = { date: $('#edDate').value, name: C.norm($('#edName').value) };
+    const n = { date: $('#edDate').value, name: C.norm($('#edName').value), time: C.norm($('#edTime').value), place: C.norm($('#edPlace').value) };
     const again = m => setTimeout(() => editDot(d0, n, m), 0);
     if (!n.date) return again('Chọn ngày sát hạch.');
-    if (n.date === d0 && n.name === (o.name || '')) return toast('Không có thay đổi');
+    if (n.date === d0 && n.name === (o.name || '') && n.time === (o.time || '') && n.place === (o.place || '')) return toast('Không có thay đổi');
     if (n.date !== d0) {
       if (dotOf(n.date)) return again(`Đã có đợt ngày ${fd(n.date)}. Chọn ngày khác (hoặc chuyển đăng ký sang đợt đó ở tab Đăng ký thi lại).`);
       if (dotDone(d0)) return again(`Đợt ${fd(d0)} đã có kết quả sát hạch, không đổi ngày được.`);
@@ -907,6 +930,8 @@ function editDot(d0, vals, err){
         o.date = n.date;
       }
       o.name = n.name;
+      if (n.time !== (o.time || '') || n.place !== (o.place || '')) parts.push(`giờ/địa điểm: ${n.time || '-'} · ${n.place || '-'}`);
+      o.time = n.time; o.place = n.place;
       logA('Sửa đợt thi', '', '', parts.join('; ')); save(); rebuild();
       const bad = regs.filter(r => r.kind === 'lai' && !r.cancelled && regIssues(r).length);
       if (bad.length) blockMsg('Cần tính lại phần thi / lệ phí', `<p>Sau khi đổi sang ngày ${fd(n.date)}, <b>${bad.length}</b> đăng ký không còn khớp hạn bảo lưu:</p><div class="small">${bad.slice(0, 10).map(r => `<b>${esc(r.name)}</b>: ${esc(regIssues(r).join('; '))}`).join('<br>')}${bad.length > 10 ? '<br>…' : ''}</div><p class="small">Vào tab <b>Đăng ký thi lại</b>, bấm “Tính lại tất cả theo đúng đợt”.</p>`);
@@ -1066,11 +1091,12 @@ function showPerson(id){
 }
 function regsBlock(regs){
   if (!regs.length) return '';
-  return `<h3>Đăng ký & thanh toán</h3>` + regs.map(r => { const t = regTotals(r);
+  const crs = creditsOf(regs[0].cccd);
+  return `<h3>Đăng ký & thanh toán</h3>` + (crs.length ? `<div class="alert ok" style="margin-top:6px">Đang có <b>tiền bảo lưu ${money(crs.reduce((a, c) => a + creditTotalLeft(c), 0))} đ</b> (${crs.map(c => Object.keys(c.items).filter(k => creditLeft(c, k)).map(k => ITEM[k] + ' ' + money(creditLeft(c, k))).join(', ') + ' từ đợt ' + fd(c.fromExam)).join('; ')}). Tự trừ khi đăng ký đợt mới.</div>` : '') + regs.map(r => { const t = regTotals(r);
     return `<div class="panel" style="margin-top:8px;padding:10px">
       <div class="row" style="justify-content:space-between;align-items:center"><b>${r.kind==='moi'?'Nạp mới':'Thi lại ' + esc(partsLbl(r))} · đợt ${fd(r.examDate)||'?'}</b><span class="pill p-${t.st}">${PST[t.st]}</span></div>
       <div class="small">Phải thu <b class="mono">${money(t.due)}</b> · đã thu <b class="mono">${money(t.paid)}</b> · còn <b class="mono">${money(t.left)}</b> · ĐK ${fd(r.regDate)}</div>
-      <div class="row" style="margin-top:6px">${r.cancelled?'':`<button class="b s p" onclick="payDlg('${r.id}')">Thu tiền</button><button class="b s" onclick="refundDlg('${r.id}')">Hoàn / giảm</button>${printBtn(r,t,'In phiếu thu')}<button class="b s" onclick="editReg('${r.id}')">Sửa</button><button class="b s" onclick="cancelReg('${r.id}')">Hủy</button>`}<button class="b s" onclick="delReg('${r.id}')">Xoá</button></div></div>`; }).join('');
+      <div class="row" style="margin-top:6px">${r.cancelled?'':`<button class="b s p" onclick="payDlg('${r.id}')">Thu tiền</button><button class="b s" onclick="refundDlg('${r.id}')">Hoàn / giảm</button>${printBtn(r,t,'In phiếu thu')}<button class="b s" onclick="editReg('${r.id}')">Sửa</button>${r.kind === 'lai' ? `<button class="b s" onclick="printHen(['${r.id}'])">Giấy hẹn</button>` : ''}${r.kind === 'lai' && creditsOf(r.cccd).some(c => c.fromReg !== r.id) ? `<button class="b s p" onclick="useCredit('${r.id}')">Trừ tiền bảo lưu</button>` : ''}<button class="b s" onclick="cancelReg('${r.id}')">Hủy</button>`}<button class="b s" onclick="delReg('${r.id}')">Xoá</button></div></div>`; }).join('');
 }
 window.gotoNew = id => { switchTab('moi'); $('#mCccd').value = id; $('#mName').focus(); };
 
@@ -1094,7 +1120,7 @@ function makeRetake(id, regDate, examDate, note, phone, addr){
   if (!ev || ev.status === 'DAT') return null;
   const f = C.fee(ev, S.cfg, regDate);
   const r = { id: uid(), kind: 'lai', cccd: id, name: p.name, dob: p.dob, phone: phone || '', addr: C.norm(addr) || lastAddr(id), regDate, examDate, parts: ev.need.slice(), calc: { examDate, need: ev.need.slice(), lastPass: ev.lastPass, expiry: ev.expiry, at: new Date().toISOString() }, items: f.items, rule: f.rule, basis: S.cfg.basis, note: note || '', createdAt: new Date().toISOString() };
-  S.regs.push(r); return r;
+  S.regs.push(r); if (creditsOf(id).length) r.creditApplied = applyCredits(r, true); return r;
 }
 window.openRetake = id => {
   const ev = H.ev.get(id), p = H.people.get(id);
@@ -1123,6 +1149,7 @@ window.openRetake = id => {
       if (evx.uncertain && evx.uncertain.length) { r.uncertainOk = { by: curUser(), at: new Date().toISOString() }; logA('Xác nhận hạn bảo lưu ước tính', id, p.name, evx.uncertain.join(', ')); }
       const paid = toNum($('#dPaid').value);
       if (paid) addPay({ regId: r.id, cccd: id, date: todayISO(), amount: paid, by: getBy(), note: 'Thu khi đăng ký', method: mt.method, txn: mt.txn });
+      if (r.creditApplied) logA('Trừ tiền bảo lưu khi đăng ký', id, p.name, money(r.creditApplied));
       logA('Đăng ký thi lại', id, p.name, `${partsLbl(r)} · đợt ${fd(r.examDate)} · phải thu ${money(regTotals(r).due)}${paid ? ' · thu ngay ' + money(paid) : ''}`);
       save(); renderAll(); showPerson(id); toast(paid ? 'Đã đăng ký và ghi thu ' + money(paid) : 'Đã đăng ký, chưa thu tiền');
     }, 'Lưu đăng ký');
@@ -1131,7 +1158,7 @@ window.openRetake = id => {
     if (!e2 || e2.status === 'DAT') { $('#dFee').innerHTML = '<div class="alert ok">Tại đợt này học viên không cần thi lại.</div>'; return; }
     const f = C.fee(e2, S.cfg, $('#dReg').value);
     $('#dFee').innerHTML = `<div class="alert ${e2.expired && e2.expired.length ? 'bad' : ''}" style="margin-bottom:8px"><b>Phải thi lại: ${ndLabel(e2.need)}</b> tại đợt ${fd(ex)}<br><span class="small">${blExplain(e2, ex)}</span></div>
-      <div class="fee">${money(f.total)} đ</div><div class="small muted">${Object.entries(f.items).map(([k,v])=>ITEM[k]+' '+money(v)).join(' + ')} · ${esc(f.rule)}</div>`;
+      <div class="fee">${money(f.total)} đ</div><div class="small muted">${Object.entries(f.items).map(([k,v])=>ITEM[k]+' '+money(v)).join(' + ')} · ${esc(f.rule)}</div>${(() => { const cr = creditsOf(id).reduce((a, c) => a + Object.keys(c.items).filter(k => f.items[k]).reduce((x, k) => x + Math.min(creditLeft(c, k), f.items[k]), 0), 0); return cr ? `<div class="alert ok" style="margin-top:8px">Có tiền bảo lưu từ lần vắng thi: tự trừ <b>${money(cr)} đ</b> → còn phải nộp <b>${money(f.total - cr)} đ</b></div>` : ''; })()}`;
     $('#dUncL').hidden = !(e2.uncertain && e2.uncertain.length);
   };
   $('#dReg').oninput = upd; $('#dExam').onchange = upd; upd();
@@ -1145,7 +1172,9 @@ window.payDlg = id => {
   dialog(`<h2>Thu tiền · ${esc(r.name)}</h2><p class="small">${esc(r.kind === 'moi' ? 'Nạp mới' : 'Thi lại ' + partsLbl(r))} · đợt ${fd(r.examDate)} · ĐK ${fd(r.regDate)}</p>
     <table class="small"><tr><th>Khoản</th><th class="num">Phải thu</th><th class="num">Đã thu</th><th class="num">Còn</th></tr>${rows}${r.adjust ? `<tr><td>Giảm trừ</td><td class="num">−${money(r.adjust)}</td><td></td><td></td></tr>` : ''}<tr class="tot"><td>Tổng</td><td class="num">${money(t.due)}</td><td class="num">${money(t.paid)}</td><td class="num">${money(t.left)}</td></tr></table>
     <div class="row" style="margin-top:10px"><label class="f">Số tiền thu lần này<input id="pAmt" class="mono" value="${t.left || ''}" inputmode="numeric" placeholder="nhập số tiền"></label><label class="f">Ngày<input type="date" id="pDate" value="${todayISO()}" max="${todayISO()}"></label><label class="f">Người thu<input id="pBy" value="${esc(getBy())}"${locked ? ' readonly' : ''}></label></div>
+    ${r.kind === 'lai' && creditsOf(r.cccd).some(c => c.fromReg !== r.id) ? `<div class="alert ok" style="margin-top:8px">Học viên còn <b>tiền bảo lưu ${money(creditsOf(r.cccd).reduce((a, c) => a + creditTotalLeft(c), 0))} đ</b> từ lần vắng thi. <button type="button" class="b s p" onclick="document.getElementById('dlg').close();useCredit('${r.id}')">Trừ tiền bảo lưu trước</button></div>` : ''}
     <div class="row" style="margin-top:8px">${methodHtml('p')}</div>
+    ${r.kind === 'lai' ? `<div id="pQr" style="display:flex;gap:12px;align-items:center;margin-top:8px"></div>` : ''}
     <div id="pExtra" class="alert" style="margin-top:10px" hidden><div id="pExtraTxt"></div>
       <div class="row" style="margin-top:6px"><label class="f">Ghi phần vượt vào khoản<select id="pExtraK">${keys.map(k => `<option value="${k}"${k === defItem ? ' selected' : ''}>${ITEM[k]}${r.items[k] ? ' (đang ' + money(r.items[k]) + ')' : ' (chưa có)'}</option>`).join('')}</select></label>
       <label class="f" style="flex:1;min-width:200px">Lý do thu thêm<input id="pExtraWhy" placeholder="vd: nộp trước lệ phí Hình"></label></div></div>
@@ -1168,7 +1197,9 @@ window.payDlg = id => {
     }, 'Ghi thu');
   const upd = () => { const a = toNum($('#pAmt').value), ex = a - t.left; $('#pExtra').hidden = !(ex > 0);
     if (ex > 0) $('#pExtraTxt').innerHTML = `Số thu vượt số còn phải thu <b>${money(ex)} đ</b>. Phần vượt sẽ được cộng vào khoản phải thu bên dưới (có ghi lý do và nhật ký).`; };
-  $('#pAmt').addEventListener('input', upd); upd();
+  const qr = () => { const el = $('#pQr'); if (!el) return; const a = toNum($('#pAmt').value), b = bankCfg();
+    el.innerHTML = a > 0 ? `<div style="width:150px;flex:none">${qrSvg(vietqr(a, payNote(r)), '150px')}</div><div class="small">Học viên quét mã để chuyển khoản <b>${money(a)} đ</b><br>${esc(bankName(b.bin))} · <span class="mono">${esc(b.acc)}</span> · ${esc(b.owner)}<br>Nội dung: <b class="mono">${esc(qrNote(payNote(r)))}</b><br><span class="muted">Nhận được tiền thì chọn “Chuyển khoản”, ghi mã giao dịch rồi bấm Ghi thu (hoặc để đối chiếu sao kê cuối ngày tự ghi).</span></div>` : ''; };
+  $('#pAmt').addEventListener('input', upd); $('#pAmt').addEventListener('input', qr); upd(); qr();
   setTimeout(() => { const e = $('#pAmt'); if (e) { e.focus(); e.select(); } }, 50);
 };
 window.refundDlg = id => {
@@ -1199,8 +1230,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.5.0', APP_DATE = '20/10/2026';
+const APP_VERSION = '3.6.0', APP_DATE = '21/10/2026';
 const CHANGELOG = [
+  ['3.6.0', '21/10/2026', ['Mã QR VietQR tự tạo dạng vector (in luôn sắc nét) theo tài khoản VietinBank 107882633015; mỗi học viên có QR riêng ghi sẵn đúng số tiền còn nợ và nội dung “A1 CCCD ngày-tháng đợt”', 'Vắng thi: tự bảo lưu lệ phí Hình và thẻ GPLX đã nộp (LT 60k và phí duyệt 50k không hoàn), tự trừ khi đăng ký đợt sau; hoàn tiền / huỷ bảo lưu; khoản tiền của người không có tên trong kết quả', 'Một nút chuyển toàn bộ người Trượt / Vắng của đợt cũ sang đợt mới, xem trước phần thi và lệ phí', 'Đối chiếu sao kê ngân hàng: nạp file, tự ghép CCCD, ghi thu hàng loạt không trùng; file sao kê mẫu', 'Giấy hẹn sát hạch (2 tờ / A4) có QR nộp tiền; giờ và địa điểm từng đợt', 'Tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi), ghi lịch sử liên hệ', 'Biên bản bàn giao lệ phí có số tiền bằng chữ', 'Tóm tắt Đạt / Trượt / Vắng ngay sau khi nạp kết quả']],
   ['3.5.0', '20/10/2026', ['Danh sách thi lại (mẫu chuẩn) và bảng chi tiết thêm cột “Ngày bảo lưu”: ngày đạt của phần còn hạn bảo lưu tại ngày thi của đợt']],
   ['3.4.0', '16/10/2026', ['Quản lý sao lưu: biết dữ liệu nằm ở thư mục nào, từng thư mục con chứa gì, giữ bao lâu, số file, dung lượng', 'Xem / tải về / so sánh / khôi phục / xoá từng file sao lưu; nút “Sao lưu ngay”; ghi đường dẫn đầy đủ của thư mục trên máy']],
   ['3.3.0', '16/10/2026', ['Bản web trên GitHub Pages: mở bằng địa chỉ web, cài như ứng dụng trên máy, chạy được khi mất mạng', 'Tự cập nhật bản mới khi có mạng; dữ liệu vẫn nằm trong thư mục trên máy (không đưa lên mạng)']],
@@ -1216,9 +1248,9 @@ function receiptHtml(r, reprint){
   const t = regTotals(r), pays = S.pays.filter(p=>p.regId===r.id && p.amount > 0).sort((a,b)=>(a.no||'').localeCompare(b.no||''));
   const payDate = pays.map(p=>p.date).sort().pop() || todayISO();
   const [y, m, d] = payDate.split('-');
-  const qr = (dotOf(r.examDate)||{}).qr;
+  const qr = r.examDate ? dotQrHtml(r.examDate, '62mm') : '';
   const nd = r.kind==='moi' ? 'Học và sát hạch lái xe mô tô hạng A1' : 'Đăng ký sát hạch lại phần ' + esc(partsLbl(r).replace('LT → H','lý thuyết (đạt rồi thi hình)').replace('LT+H','lý thuyết và hình').replace(/^LT$/,'lý thuyết').replace(/^H$/,'hình'));
-  const nos = pays.map(p=>p.no).filter(Boolean), methods = [...new Set(pays.map(p => (PM[p.method]||'Tiền mặt') + (p.txn ? ' (mã GD ' + p.txn + ')' : '')))];
+  const nos = pays.filter(p => p.method !== 'BL').map(p=>p.no).filter(Boolean), methods = [...new Set(pays.map(p => (PM[p.method]||'Tiền mặt') + (p.txn ? ' (mã GD ' + p.txn + ')' : '')))];
   return `
     <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:start">
       <div></div><div style="text-align:center;font-weight:bold;font-size:14.5px">${ORG}</div><div style="text-align:right;font-weight:bold">${ORG_SITE}</div></div>
@@ -1231,7 +1263,7 @@ function receiptHtml(r, reprint){
       ${Object.entries(r.items).map(([k,v])=>`<tr><td>${ITEM[k]}</td><td style="text-align:right">${money(v)}</td></tr>`).join('')}
       ${r.adjust?`<tr><td>Giảm trừ${r.adjNote?' ('+esc(r.adjNote)+')':''}</td><td style="text-align:right">-${money(r.adjust)}</td></tr>`:''}
       <tr><td><b>Tổng thu</b></td><td style="text-align:right"><b>${money(t.due)}</b></td></tr></table></div>
-      ${qr ? `<div style="text-align:center;width:64mm;flex:none"><img src="${qr}" style="width:62mm;height:62mm;object-fit:contain;image-rendering:pixelated;display:block;margin:0 auto" alt="QR"><i style="font-size:11px;line-height:1.25;display:block;margin-top:1mm">Mã QR đợt ${esc(dotLabel(r.examDate))}</i></div>` : ''}
+      ${qr ? `<div style="text-align:center;width:64mm;flex:none">${qr}<i style="font-size:11px;line-height:1.25;display:block;margin-top:1mm">${esc(bankName(bankCfg().bin))} · ${esc(bankCfg().acc)}<br>${esc(bankCfg().owner)}</i></div>` : ''}
     </div>
     <table style="width:100%;margin-top:3mm"><tr><td style="text-align:center;width:50%"><b>Người nộp tiền</b><br><i>(Ký, ghi rõ họ tên)</i></td><td style="text-align:center"><b>Người thu tiền</b><br><i>(Ký, ghi rõ họ tên)</i></td></tr>
     <tr><td style="height:14mm"></td><td style="text-align:center;vertical-align:bottom">${esc((pays[pays.length-1]||{}).by||'')}</td></tr></table>`;
@@ -1365,14 +1397,14 @@ function renderTL(){
       <td class="num">${money(t.due)}</td><td class="num">${money(t.paid)}</td><td class="num ${t.left?'r-T':''}">${t.left?money(t.left):''}</td>
       <td><span class="pill p-${t.st}">${PST[t.st]}</span></td><td>${o.k==='D'||o.k==='T'||o.k==='V'?`<span class="r-${o.k}">${o.l}</span>`:`<span class="small muted">${o.l}</span>`}</td>
       <td class="small">${esc(r.note||'')}</td>
-      <td class="act">${r.cancelled?`<button class="b s" onclick="uncancel('${r.id}')">Bỏ hủy</button>`:`<button class="b s ${t.left>0?'p':''}" onclick="payDlg('${r.id}')">${t.left>0?'Thu tiền':'Thu thêm'}</button><button class="b s" onclick="editReg('${r.id}')">Sửa</button>${printBtn(r,t,'In phiếu')}<button class="b s" onclick="cancelReg('${r.id}')">Hủy</button>`}<button class="b s" onclick="delReg('${r.id}')">Xoá</button></td></tr>`).join('')}</table>`
+      <td class="act">${r.cancelled?`<button class="b s" onclick="uncancel('${r.id}')">Bỏ hủy</button>`:`<button class="b s ${t.left>0?'p':''}" onclick="payDlg('${r.id}')">${t.left>0?'Thu tiền':'Thu thêm'}</button><button class="b s" onclick="editReg('${r.id}')">Sửa</button>${printBtn(r,t,'In phiếu')}<button class="b s" onclick="printHen(['${r.id}'])">Giấy hẹn</button><button class="b s" onclick="cancelReg('${r.id}')">Hủy</button>`}<button class="b s" onclick="delReg('${r.id}')">Xoá</button></td></tr>`).join('')}</table>`
     : `<div class="empty">${regs.length ? 'Không có ai khớp bộ lọc.' : 'Chưa có ai đăng ký thi lại. Tra CCCD ở tab Quầy rồi bấm “Đăng ký thi lại”, hoặc dán danh sách CCCD ở ô bên dưới.'}</div>`;
   updTlSel();
   const owe = regs.filter(r=>!r.cancelled && regTotals(r).left>0).length;
   $('#nTl').hidden = !owe; $('#nTl').textContent = owe; $('#nTl').title = owe + ' người chưa nộp đủ';
 }
 function updTlSel(){
-  const n = tlSel.size; ['tlBulkPay','tlBulkDot','tlBulkDel'].forEach(i=>$('#'+i).disabled = !n);
+  const n = tlSel.size; ['tlBulkPay','tlBulkDot','tlBulkDel','tlBulkHen','tlBulkMsg'].forEach(i=>$('#'+i).disabled = !n);
   $('#tlSelInfo').textContent = n ? `Đã chọn ${n} người` : 'Tick ô đầu dòng để thao tác nhiều người cùng lúc.';
   const all = $('#tlAll'); if (all) all.checked = n && n === tlRows.length;
 }
@@ -1441,14 +1473,7 @@ $('#tlExport').onclick = () => {
 const ndLabel = parts => 'SH lại ' + ['LT','H'].filter(p => parts.includes(p)).map(p => p === 'LT' ? 'L' : 'H').join('+');
 /* Khoản nào đã nộp đủ: tiền đã nộp được phân lần lượt theo thứ tự cột (kiểm duyệt → LT → Hình → GPLX); giảm trừ bỏ bớt khoản từ cuối */
 const FEE_ORDER = ['HP','DUYET','LT','H','GPLX','GPLX115'];
-function itemStatus(r){
-  const keys = FEE_ORDER.filter(k => r.items[k]), st = {};
-  let adj = r.adjust || 0;
-  for (const k of keys.slice().reverse()) if (adj >= r.items[k]) { st[k] = 'giam'; adj -= r.items[k]; }
-  let pool = regTotals(r).paid;
-  for (const k of keys) { if (st[k]) continue; if (pool >= r.items[k]) { st[k] = 'paid'; pool -= r.items[k]; } else { st[k] = 'due'; pool = 0; } }
-  return st;
-}
+function itemStatus(r){ const a = allocPays(r), st = {}; for (const k of a.keys) st[k] = a.due[k] <= 0 ? 'giam' : a.paid[k] >= a.due[k] ? 'paid' : 'due'; return st; }
 function lastAddr(cccd){ const p = H.people.get(cccd); if (p) for (let i = p.attempts.length - 1; i >= 0; i--) if (p.attempts[i].addr) return p.attempts[i].addr; return (S.scanAddr || {})[cccd] || H.addrBook[cccd] || ''; }
 function lastFailDate(cccd){ const p = H.people.get(cccd); if (!p) return ''; for (let i = p.attempts.length - 1; i >= 0; i--) { const a = p.attempts[i]; if (a.kq !== 'D') return a.date; } return p.attempts[p.attempts.length-1].date; }
 const dobText = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? fd(v) : (v || '');
@@ -2062,13 +2087,7 @@ function staleHtml(){ const d = staleDots(); return d.length ? `<div class="aler
 const TK_ITEMS = { DUYET: 'Phí duyệt hồ sơ', LT: 'Lệ phí lý thuyết', H: 'Lệ phí hình', GPLX115: 'Phí cấp thẻ GPLX' };
 const TK_ORDER = ['DUYET', 'LT', 'H', 'GPLX115'];
 /* Chia tiền đã thu vào từng khoản (giảm trừ bỏ bớt từ khoản cuối) */
-function paidByItem(r){
-  const keys = TK_ORDER.filter(k => r.items[k]), due = {}, paid = {};
-  keys.forEach(k => due[k] = r.items[k]);
-  let adj = r.adjust || 0; for (const k of keys.slice().reverse()) { const d = Math.min(adj, due[k]); due[k] -= d; adj -= d; }
-  let pool = Math.max(0, regTotals(r).paid); for (const k of keys) { const a = Math.min(pool, due[k]); paid[k] = a; pool -= a; }
-  return { due, paid, extra: pool };
-}
+function paidByItem(r){ const a = allocPays(r), due = {}, paid = {}; a.keys.filter(k => TK_ORDER.includes(k)).forEach(k => { due[k] = a.due[k]; paid[k] = a.paid[k]; }); return { due, paid, extra: a.extra }; }
 function baseDateOf(r){ const p = H.people.get(r.cccd); if (!p) return ''; const prior = p.attempts.filter(a => !r.examDate || a.date < r.examDate); return prior.length ? prior[prior.length - 1].date : ''; }
 const tkCut = () => $('#tkCut').value || S.cfg.cutoffBoth || '2026-07-01';
 const grpLabel = (g, long) => g === 'A' ? (long ? `A. Thi lần cuối TRƯỚC ngày ${fd(tkCut())}` : `Trước ${fd(tkCut())}`) : (long ? `B. Thi lần cuối TỪ ngày ${fd(tkCut())} trở đi` : `Từ ${fd(tkCut())}`);
@@ -2327,7 +2346,7 @@ function renderHeader(){
   const w = [...H.ev.values()].filter(e=>e.status==='HETBL'||(e.status!=='DAT'&&e.soon&&e.soon.length)).length;
   $('#nWarn').hidden = !w; $('#nWarn').textContent = w;
 }
-function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderDs(); renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip();
+function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderDs(); renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip(); creditRecalc(); renderCredits(); renderBankPanel();
   { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-home') renderHome(); if (t === 't-quy') renderQuy(); if (t === 't-bc') renderBc(); }
   { const un = unclosedDays().filter(u => u.date < todayISO()).length; $('#nQuy').hidden = !un; $('#nQuy').textContent = un; $('#nQuy').title = un + ' ca ngày trước chưa chốt'; }
   $('#qList').innerHTML = ''; }
@@ -2423,12 +2442,13 @@ $('#bkImport').onchange = async e => { const f = e.target.files[0]; if (!f) retu
 /*KHOA*/
 /*MONEY*/
 /*MGMT*/
+/*KYTHI*/
 /* ---------------- KHOÁ THAO TÁC NHẠY CẢM ---------------- */
 for (const [k, label, role] of [['delReg','Xoá đăng ký','quanly'], ['delPay','Xoá khoản thu','quanly'], ['refundDlg','Hoàn tiền / giảm phải thu','ketoan'], ['delRut','Xoá bản ghi rút hồ sơ','quanly'], ['purgeTrash','Xoá vĩnh viễn','quanly'], ['restoreTrash','Khôi phục từ thùng rác','ketoan']]) {
   const f = window[k]; window[k] = (...a) => requireRole(role, label, () => f(...a));
 }
 /* Thao tác có tiền / đăng ký: phải lưu được ra ổ đĩa */
-for (const [k, label] of [['openRetake','Đăng ký thi lại'], ['payDlg','Thu tiền'], ['refundDlg','Hoàn / giảm tiền'], ['addFromDsoat','Bổ sung đăng ký']]) {
+for (const [k, label] of [['openRetake','Đăng ký thi lại'], ['payDlg','Thu tiền'], ['refundDlg','Hoàn / giảm tiền'], ['addFromDsoat','Bổ sung đăng ký'], ['transferDlg','Chuyển Trượt/Vắng sang đợt mới'], ['useCredit','Trừ tiền bảo lưu'], ['refundCredit','Hoàn tiền bảo lưu'], ['moneyAction','Xử lý tiền']]) {
   const f = window[k]; window[k] = (...a) => guardStorage(label, () => f(...a));
 }
 { const f = $('#tlBulkPay').onclick; $('#tlBulkPay').onclick = e => guardStorage('Thu theo danh sách', () => f(e)); }
@@ -2449,6 +2469,7 @@ for (const [id, label, ev] of [['tlBulkDel','Xoá nhiều đăng ký','onclick']
   rebuild();
   await FS.boot(); renderFs();
   restoreSession(); renderUser(); needLogin();
+  if (H.people.size && syncCredits().length) save();
   if (S.migratedFrom && !S.migrNoted) { S.migrNoted = nowISO(); logA('Nâng cấp dữ liệu', '', '', `v${S.migratedFrom} → v${SCHEMA}: đánh số phiếu thu cho ${S.pays.filter(p => p.noByUpgrade).length} khoản cũ, hình thức mặc định tiền mặt`); save(); }
   if (!H.people.size && !S.regs.length && !(FS.dir && FS.perm !== 'granted')) switchTab('data'); else switchTab('home');
   let bk = null; try { bk = localStorage.getItem('soA1.bk'); } catch(e){}

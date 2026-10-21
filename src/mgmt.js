@@ -99,6 +99,7 @@ function renderHome(){
   if (issues.length) todo.push(['bad', `${issues.length} đăng ký thi lại sai phần thi / lệ phí so với đợt`, 'tl']);
   stale.forEach(d => todo.push(['warn', `Đợt ${fd(d)} đã thi nhưng chưa nạp kết quả`, 'data']));
   if (debt.length) todo.push(['warn', `${debt.length} người còn nợ, tổng ${money(debtSum)} đ`, 'thu']);
+  if (typeof kythiTodo === 'function') kythiTodo().forEach(x => todo.push(x));
   kh.filter(x => x.c.st === 'over').forEach(x => todo.push(['bad', `Khóa mới ${x.k.name}: vượt chỉ tiêu ${x.c.net - x.c.limit}`, 'khoa']));
   kh.filter(x => x.c.days != null && x.c.days >= 0 && x.c.days <= 14 && x.c.free > 0).forEach(x => todo.push(['warn', `Khóa mới ${x.k.name}: còn ${x.c.days} ngày đến sát hạch, còn trống ${x.c.free} chỗ`, 'khoa']));
   if (!lastXl || Date.now() - new Date(lastXl).getTime() > 7 * 864e5) todo.push(['warn', 'Hơn 7 ngày chưa sao lưu ra Excel (cất USB / ổ khác)', 'data']);
