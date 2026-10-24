@@ -95,6 +95,27 @@ tr.click{cursor:pointer}
 .chip.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 .chip .c{font-family:var(--mono);opacity:.75}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.qwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
+.qwrap .qmain{min-width:0}
+.qside{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:12px 12px 8px}
+@media (max-width:1200px){.qwrap{grid-template-columns:1fr}.qside{position:static;max-height:none}}
+.qside h2{margin:0 0 2px;font-size:14px}
+.qs-tot{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 10px}
+.qs-tot div{border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;background:var(--bg)}
+.qs-tot span{display:block;font-size:10.5px;color:var(--muted)} .qs-tot b{font-family:var(--mono);font-size:17px}
+.qs-dot{border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:8px;cursor:pointer;background:var(--panel);transition:border-color .2s}
+.qs-dot:hover{border-color:var(--brand)}
+.qs-dot.new{border-color:var(--ok);box-shadow:0 0 0 2px color-mix(in srgb,var(--ok) 25%,transparent)}
+.qs-dot.done{opacity:.72}
+.qs-hd{display:flex;justify-content:space-between;align-items:baseline;gap:6px}
+.qs-hd b{font-family:var(--mono);font-size:14px} .qs-hd .n{font-family:var(--mono);font-size:20px;font-weight:700}
+.qs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:5px;font-size:11.5px;text-align:center}
+.qs-grid div{background:var(--bg);border-radius:6px;padding:3px 2px} .qs-grid b{display:block;font-family:var(--mono);font-size:14px}
+.qs-bar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:6px;background:var(--line)}
+.qs-bar i{display:block;height:100%}
+.qs-meta{font-size:11px;color:var(--muted);margin-top:4px;display:flex;justify-content:space-between;gap:6px}
+@keyframes qsBump{0%{transform:scale(1)}40%{transform:scale(1.25);color:var(--ok)}100%{transform:scale(1)}}
+.qs-bump{display:inline-block;animation:qsBump .9s ease}
 .kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);box-shadow:var(--shadow);position:relative;overflow:hidden}
 .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--brand);opacity:.8}
 .kpi.warn::before{background:var(--warn)} .kpi.bad::before{background:var(--bad)} .kpi.ok::before{background:var(--ok)}
@@ -233,6 +254,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
 
 <!-- ============ QUẦY ============ -->
 <section class="tab on" id="t-quay">
+ <div class="qwrap"><div class="qmain">
   <div class="panel">
     <div class="row">
       <label class="f" style="flex:1;min-width:240px">Gõ CCCD (hoặc họ tên) rồi Enter
@@ -245,6 +267,8 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     <div id="qHits" class="small muted" style="margin-top:6px"></div>
   </div>
   <div id="qOut"></div>
+ </div>
+ <aside class="panel qside" id="qSide"></aside></div>
 </section>
 
 <!-- ============ ĐĂNG KÝ THI LẠI ============ -->
@@ -1230,8 +1254,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.6.1', APP_DATE = '21/10/2026';
+const APP_VERSION = '3.7.0', APP_DATE = '24/10/2026';
 const CHANGELOG = [
+  ['3.7.0', '24/10/2026', ['Quầy tra cứu: khung bên phải hiện số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H, nạp mới, chưa nộp đủ, +N hôm nay), cập nhật ngay khi nhập; đợt vừa có người nộp tự lên đầu', 'Danh sách thi lại (mẫu chuẩn) và bảng chi tiết thêm cột “Vắng / có thi”: Có thi, Vắng LT, Vắng H, Vắng LT+H, Không thi H (trượt LT), Không có tên trong KQ — để tìm đúng biên bản thi']],
   ['3.6.1', '21/10/2026', ['Sửa quy định bảo lưu: lệ phí Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026); đạt LT mà vắng Hình thì không. Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt (vắng hay trượt). Khoản tạo theo quy định cũ tự tính lại', 'Tiền đã bàn giao ở đợt trước không tính lại: đăng ký mới, phiếu thu, sổ thu, tổng kết và biên bản chỉ tính phần học viên đóng thêm; phần trừ bảo lưu ghi riêng', 'Biên bản đợt cũ ghi rõ số tiền được bảo lưu sang đợt sau']],
   ['3.6.0', '21/10/2026', ['Mã QR VietQR tự tạo dạng vector (in luôn sắc nét) theo tài khoản VietinBank 107882633015; mỗi học viên có QR riêng ghi sẵn đúng số tiền còn nợ và nội dung “A1 CCCD ngày-tháng đợt”', 'Vắng thi: tự bảo lưu lệ phí Hình và thẻ GPLX đã nộp (LT 60k và phí duyệt 50k không hoàn), tự trừ khi đăng ký đợt sau; hoàn tiền / huỷ bảo lưu; khoản tiền của người không có tên trong kết quả', 'Một nút chuyển toàn bộ người Trượt / Vắng của đợt cũ sang đợt mới, xem trước phần thi và lệ phí', 'Đối chiếu sao kê ngân hàng: nạp file, tự ghép CCCD, ghi thu hàng loạt không trùng; file sao kê mẫu', 'Giấy hẹn sát hạch (2 tờ / A4) có QR nộp tiền; giờ và địa điểm từng đợt', 'Tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi), ghi lịch sử liên hệ', 'Biên bản bàn giao lệ phí có số tiền bằng chữ', 'Tóm tắt Đạt / Trượt / Vắng ngay sau khi nạp kết quả']],
   ['3.5.0', '20/10/2026', ['Danh sách thi lại (mẫu chuẩn) và bảng chi tiết thêm cột “Ngày bảo lưu”: ngày đạt của phần còn hạn bảo lưu tại ngày thi của đợt']],
@@ -1466,7 +1491,7 @@ $('#tlExport').onclick = () => {
     return { 'STT': i + 1, 'Họ và tên': r.name, 'Ngày sinh': dobText(r.dob), 'CCCD': r.cccd, 'SĐT': r.phone || phoneOf(r.cccd), 'Nơi cư trú': regAddr(r),
       'Phần thi lại': ndLabel(r.parts), 'Thi lần cuối': ev ? fd(ev.lastDate) : '', 'Ngày bảo lưu': fd(reservedDate(r)), 'Đợt thi lại': fd(r.examDate), 'Ngày đăng ký': fd(r.regDate),
       'Lệ phí LT': it.LT || 0, 'Lệ phí Hình': it.H || 0, 'Phí cấp thẻ GPLX': it.GPLX115 || 0, 'Phí duyệt HS': it.DUYET || 0, 'Giảm trừ': r.adjust || 0,
-      'Phải thu': t.due, 'Đã thu': t.paid, 'Còn nợ': t.left, 'Thanh toán': PST[t.st], 'Kết quả đợt': o.l || '',
+      'Phải thu': t.due, 'Đã thu': t.paid, 'Còn nợ': t.left, 'Thanh toán': PST[t.st], 'Kết quả đợt': o.l || '', 'Vắng / có thi': absentLabel(r),
       'Hạn BL lý thuyết': ev && ev.expiry.LT ? fd(ev.expiry.LT) : '', 'Hạn BL hình': ev && ev.expiry.H ? fd(ev.expiry.H) : '',
       'Số lần đã thi': p ? p.attempts.length : 0, 'Ghi chú': [r.note, r.cancelReason, r.adjNote].filter(Boolean).join('; ') }; });
   exportXlsx(`BANG_CHI_TIET_THI_LAI_${dotV && dotV !== '*' ? dotV.split('-').reverse().join('-') : todayISO()}.xlsx`, [['Chi tiet thi lai', rows, { title: 'Bảng chi tiết đăng ký sát hạch lại – hạng A1', sub: `Đợt: ${dl} · Xuất ngày ${fd(todayISO())}${curUser() ? ' · Người xuất: ' + curUser() : ''} · ${rows.length} học viên`, wide: { 'Họ và tên': 26, 'Nơi cư trú': 40, 'Số lần đã thi': 8, 'Ghi chú': 24, 'Thanh toán': 13, 'Kết quả đợt': 11 } }]]);
@@ -1494,25 +1519,25 @@ function buildTLForm(regs){
     ['GIAO THÔNG VẬN TẢI BÌNH ĐỊNH','','','','','Độc lập - Tự do - Hạnh phúc','','','','','','','','',''],
     ['DANH SÁCH THÍ SINH DỰ SÁT HẠCH','','','','','','','','','','','','','',''],
     [], [], [], [],
-    ['STT','Họ và tên','Ngày tháng năm sinh','Số định danh','Nơi cư trú','Giấy chứng nhận sức khỏe hợp lệ','Đã có giấy phép lái xe hạng','Thời gian trượt',`phí kiểm duyệt ${k(P.DUYET)}`,`lệ phí LT ${k(P.LT)}`,`lệ phí H ${k(P.H)}`,`Phí GPLX ${k(P.GPLX)}`,'Nội dung SH lại','Số điện thoại','Ngày bảo lưu'],
-    ['','','','','','','','','','','','','','',''], ['','','','','','','','','','','','','','',''],
-    ['(1)','(2)','(3)','(4)','(5)','(6)','(7)','(8)','','','(10)','','(11)','(12)','(13)']
+    ['STT','Họ và tên','Ngày tháng năm sinh','Số định danh','Nơi cư trú','Giấy chứng nhận sức khỏe hợp lệ','Đã có giấy phép lái xe hạng','Thời gian trượt',`phí kiểm duyệt ${k(P.DUYET)}`,`lệ phí LT ${k(P.LT)}`,`lệ phí H ${k(P.H)}`,`Phí GPLX ${k(P.GPLX)}`,'Nội dung SH lại','Số điện thoại','Ngày bảo lưu','Vắng / có thi (đợt này)'],
+    ['','','','','','','','','','','','','','','',''], ['','','','','','','','','','','','','','','',''],
+    ['(1)','(2)','(3)','(4)','(5)','(6)','(7)','(8)','','','(10)','','(11)','(12)','(13)','(14)']
   ];
   const out = [];
   rows.forEach((r, i) => {
     const fail = lastFailDate(r.cccd), it = r.items;
     const rec = { stt: i + 1, name: C.norm(r.name).toUpperCase(), dob: dobText(r.dob), cccd: r.cccd, addr: regAddr(r), sk: r.sk === false ? '' : 'x', gplx: r.gplxHang || '',
-      fail, nd: ndLabel(r.parts), phone: r.phone || phoneOf(r.cccd), bl: reservedDate(r) };
+      fail, nd: ndLabel(r.parts), phone: r.phone || phoneOf(r.cccd), bl: reservedDate(r), vang: absentLabel(r) };
     const ist = itemStatus(r), fee = k => !it[k] || ist[k] === 'giam' ? null : ist[k] === 'paid' ? it[k] : 'chưa nộp';
     Object.assign(rec, { duyet: fee('DUYET'), lt: fee('LT'), h: fee('H'), gplx115: fee('GPLX115') });
     out.push(rec);
-    aoa.push([rec.stt, rec.name, rec.dob, rec.cccd, rec.addr, rec.sk, rec.gplx, rec.fail, rec.duyet, rec.lt, rec.h, rec.gplx115, rec.nd, rec.phone, rec.bl]);
+    aoa.push([rec.stt, rec.name, rec.dob, rec.cccd, rec.addr, rec.sk, rec.gplx, rec.fail, rec.duyet, rec.lt, rec.h, rec.gplx115, rec.nd, rec.phone, rec.bl, rec.vang]);
   });
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   const F = 'Times New Roman', thin = { style: 'thin', color: { rgb: '000000' } }, B = { top: thin, bottom: thin, left: thin, right: thin };
   const st = (r, c, s) => { const ref = XLSX.utils.encode_cell({ r, c }); if (!ws[ref]) ws[ref] = { t: 's', v: '' }; ws[ref].s = s; return ws[ref]; };
   const ctr = { horizontal: 'center', vertical: 'center', wrapText: true };
-  for (let c = 0; c < 15; c++) {
+  for (let c = 0; c < 16; c++) {
     st(0, c, { font: { name: F, sz: 12, bold: true }, alignment: ctr });
     st(1, c, { font: { name: F, sz: 12, bold: true, underline: true }, alignment: ctr });
     st(2, c, { font: { name: F, sz: 16, bold: true }, alignment: ctr });
@@ -1520,19 +1545,20 @@ function buildTLForm(regs){
     st(10, c, { font: { name: F, sz: 10, italic: true }, alignment: ctr, border: B });
   }
   const last = 10 + out.length;
-  for (let r = 11; r <= last; r++) for (let c = 0; c < 15; c++) {
-    const cell = st(r, c, { font: { name: F, sz: c === 1 ? 13 : 11 }, alignment: { vertical: 'center', horizontal: [0,2,3,5,6,7,13,14].includes(c) ? 'center' : [8,9,10,11].includes(c) ? 'right' : 'left' }, border: B });
+  for (let r = 11; r <= last; r++) for (let c = 0; c < 16; c++) {
+    const cell = st(r, c, { font: { name: F, sz: c === 1 ? 13 : 11 }, alignment: { vertical: 'center', horizontal: [0,2,3,5,6,7,13,14,15].includes(c) ? 'center' : [8,9,10,11].includes(c) ? 'right' : 'left' }, border: B });
     if (c === 3 || c === 2 || c === 13) { cell.t = 's'; cell.v = String(cell.v ?? ''); }               // CCCD, ngày sinh: giữ dạng chữ (không mất số 0)
     if ((c === 7 || c === 14) && cell.v) { const [y,m,d] = String(cell.v).split('-').map(Number); cell.t = 'n'; cell.v = Math.round((Date.UTC(y, m-1, d) - Date.UTC(1899, 11, 30)) / 86400000); cell.z = 'dd/mm/yyyy'; }
+    if (c === 15 && /^Vắng|Không có tên|Không thi/.test(cell.v || '')) cell.s.font = { name: F, sz: 11, bold: true, color: { rgb: 'C00000' } };
     if (c >= 8 && c <= 11) { if (cell.v === '' || cell.v == null) { cell.t = 's'; cell.v = ''; } else if (typeof cell.v === 'string') { cell.t = 's'; cell.s.alignment = { vertical: 'center', horizontal: 'center' }; cell.s.font = { name: F, sz: 11, italic: true, color: { rgb: 'C00000' } }; } else { cell.t = 'n'; cell.z = '#,##0'; } }
   }
-  ws['!merges'] = [ { s:{r:0,c:0}, e:{r:0,c:3} }, { s:{r:0,c:5}, e:{r:0,c:14} }, { s:{r:1,c:0}, e:{r:1,c:3} }, { s:{r:1,c:5}, e:{r:1,c:14} }, { s:{r:2,c:0}, e:{r:2,c:14} },
-    ...Array.from({ length: 15 }, (_, c) => ({ s: { r: 7, c }, e: { r: 9, c } })) ];
-  ws['!cols'] = [5.5, 32, 11.5, 13.5, 40, 7.5, 7, 10.5, 10.5, 10.5, 11, 11, 10.5, 12.5, 11.5].map(wch => ({ wch }));
+  ws['!merges'] = [ { s:{r:0,c:0}, e:{r:0,c:3} }, { s:{r:0,c:5}, e:{r:0,c:15} }, { s:{r:1,c:0}, e:{r:1,c:3} }, { s:{r:1,c:5}, e:{r:1,c:15} }, { s:{r:2,c:0}, e:{r:2,c:15} },
+    ...Array.from({ length: 16 }, (_, c) => ({ s: { r: 7, c }, e: { r: 9, c } })) ];
+  ws['!cols'] = [5.5, 32, 11.5, 13.5, 40, 7.5, 7, 10.5, 10.5, 10.5, 11, 11, 10.5, 12.5, 11.5, 16].map(wch => ({ wch }));
   ws['!rows'] = [{ hpt: 18 }, { hpt: 18 }, { hpt: 26 }, { hidden: true }, { hidden: true }, { hidden: true }, { hidden: true }, { hpt: 26 }, { hpt: 26 }, { hpt: 26 }, { hpt: 18 }, ...out.map(() => ({ hpt: 19 }))];
-  ws['!autofilter'] = { ref: `A11:O${Math.max(11, last + 1)}` };
+  ws['!autofilter'] = { ref: `A11:P${Math.max(11, last + 1)}` };
   ws['!margins'] = { left: 0.35, right: 0.35, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 };
-  ws['!ref'] = `A1:O${Math.max(11, last + 1)}`;
+  ws['!ref'] = `A1:P${Math.max(11, last + 1)}`;
   return { ws, out };
 }
 /* Ghi file .xlsx kèm thiết lập in: A4 ngang, vừa 1 trang bề ngang, lặp dòng tiêu đề mỗi trang */
@@ -2352,7 +2378,7 @@ function renderHeader(){
   const w = [...H.ev.values()].filter(e=>e.status==='HETBL'||(e.status!=='DAT'&&e.soon&&e.soon.length)).length;
   $('#nWarn').hidden = !w; $('#nWarn').textContent = w;
 }
-function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderDs(); renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip(); creditRecalc(); renderCredits(); renderBankPanel();
+function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderDs(); renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip(); renderQSide(); creditRecalc(); renderCredits(); renderBankPanel();
   { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-home') renderHome(); if (t === 't-quy') renderQuy(); if (t === 't-bc') renderBc(); }
   { const un = unclosedDays().filter(u => u.date < todayISO()).length; $('#nQuy').hidden = !un; $('#nQuy').textContent = un; $('#nQuy').title = un + ' ca ngày trước chưa chốt'; }
   $('#qList').innerHTML = ''; }

@@ -419,3 +419,47 @@ function skSampleWb(){
   const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Sao ke'); return wb;
 }
 $('#skSample').onclick = () => { XLSX.writeFile(skSampleWb(), 'SAO_KE_MAU_VIETINBANK.xlsx'); toast('Đã tải file sao kê mẫu. Nạp thử bằng nút “Chọn file sao kê…”'); };
+
+/* ---------------- CỘT "VẮNG" TRONG DS THI LẠI: đối tượng có dự thi đợt đó không ---------------- */
+function absentLabel(r){
+  if (!r || !r.examDate || !dotDone(r.examDate)) return '';            /* đợt chưa thi / chưa nạp kết quả */
+  const a = attemptAt(r.cccd, r.examDate); if (!a) return 'Không có tên trong KQ';
+  const wantLT = r.parts.includes('LT'), wantH = r.parts.includes('H');
+  const vLT = wantLT && a.lt === 'V', vH = wantH && a.h === 'V';
+  if (vLT && vH) return 'Vắng LT+H';
+  if (vLT) return 'Vắng LT';
+  if (vH) return wantLT && a.lt === 'T' ? 'Không thi H (trượt LT)' : 'Vắng H';
+  return 'Có thi';
+}
+
+/* ---------------- KHUNG SỐ LƯỢNG ĐĂNG KÝ THEO ĐỢT (quầy) ---------------- */
+let qsPrev = null;
+function renderQSide(){
+  const el = $('#qSide'); if (!el) return;
+  const t = todayISO(), by = new Map();
+  for (const r of S.regs) { if (r.cancelled || !r.examDate) continue;
+    const o = by.get(r.examDate) || { d: r.examDate, n: 0, LT: 0, H: 0, LH: 0, moi: 0, today: 0, last: '', owe: 0 }; by.set(r.examDate, o);
+    if (r.kind === 'moi') o.moi++; else { o.n++; const lt = r.parts.includes('LT'), h = r.parts.includes('H'); if (lt && h) o.LH++; else if (lt) o.LT++; else if (h) o.H++; }
+    const at = r.createdAt || r.regDate || ''; if (at > o.last) o.last = at; if ((r.regDate || '') === t || at.slice(0, 10) === t) o.today++;
+    if (regTotals(r).left > 0) o.owe++; }
+  for (const o of S.dots || []) if (!by.has(o.date) && o.date >= t) by.set(o.date, { d: o.date, n: 0, LT: 0, H: 0, LH: 0, moi: 0, today: 0, last: '', owe: 0 });
+  /* Đợt vừa có người nộp thêm lên đầu; đợt đã thi xếp sau */
+  const list = [...by.values()].sort((a, b) => (dotDone(a.d) - dotDone(b.d)) || b.last.localeCompare(a.last) || b.d.localeCompare(a.d));
+  const up = list.filter(o => !dotDone(o.d)), sum = k => up.reduce((s, o) => s + o[k], 0);
+  const prev = qsPrev || {}, now = {}; list.forEach(o => now[o.d] = o.n + o.moi); qsPrev = now;
+  const bump = d => qsPrev && prev[d] != null && now[d] > prev[d];
+  const pct = (v, n) => n ? (v / n * 100).toFixed(1) + '%' : '0';
+  const card = o => { const tot = o.n + o.moi, done = dotDone(o.d), dn = (dotOf(o.d) || {}).name;
+    return `<div class="qs-dot${done ? ' done' : ''}${o.today && !done ? ' new' : ''}" data-qsd="${o.d}" title="Bấm để xem danh sách đợt này">
+      <div class="qs-hd"><div><b>${fd(o.d)}</b>${dn ? ` <span class="small muted">${esc(dn)}</span>` : ''}<div class="small muted">${done ? 'Đã thi' : o.d < t ? 'Chờ nạp kết quả' : 'Còn ' + Math.round((new Date(o.d) - new Date(t)) / 864e5) + ' ngày'}</div></div><span class="n${bump(o.d) ? ' qs-bump' : ''}">${tot}</span></div>
+      <div class="qs-grid"><div>Lại LT<b>${o.LT}</b></div><div>Lại Hình<b>${o.H}</b></div><div>Lại LT+H<b>${o.LH}</b></div></div>
+      ${o.n ? `<div class="qs-bar"><i style="width:${pct(o.LT, o.n)};background:#3b82c4"></i><i style="width:${pct(o.H, o.n)};background:#d99a1e"></i><i style="width:${pct(o.LH, o.n)};background:#7a5cc2"></i></div>` : ''}
+      <div class="qs-meta"><span>${o.moi ? `+ ${o.moi} nạp mới · ` : ''}${o.owe ? `<span class="r-T">${o.owe} chưa nộp đủ</span>` : o.n ? 'đã nộp đủ' : 'chưa có ai'}</span><span>${o.today ? `<b class="r-D">+${o.today} hôm nay</b>` : o.last ? 'mới nhất ' + fd(o.last.slice(0, 10)) : ''}</span></div></div>`; };
+  const shown = list.slice(0, 10);
+  el.innerHTML = `<h2>Số lượng đăng ký theo đợt</h2><div class="small muted">Cập nhật ngay khi nhập · đợt vừa có người nộp lên đầu</div>
+    <div class="qs-tot"><div><span>Tổng sắp thi</span><b>${sum('n') + sum('moi')}</b></div><div><span>Lại LT</span><b>${sum('LT')}</b></div><div><span>Lại Hình</span><b>${sum('H')}</b></div><div><span>Lại LT+H</span><b>${sum('LH')}</b></div></div>
+    ${shown.length ? shown.map(card).join('') : '<div class="empty">Chưa có đợt nào.</div>'}
+    ${list.length > shown.length ? `<div class="small muted" style="text-align:center">… còn ${list.length - shown.length} đợt cũ (xem ở tab Đợt thi)</div>` : ''}
+    <div class="small muted" style="margin-top:4px"><span style="color:#3b82c4">■</span> LT <span style="color:#d99a1e">■</span> Hình <span style="color:#7a5cc2">■</span> LT+H · không tính đăng ký đã hủy</div>`;
+}
+$('#qSide').addEventListener('click', e => { const c = e.target.closest('[data-qsd]'); if (!c) return; switchTab('tl'); const s = $('#tlDot'); if ([...s.options].some(o => o.value === c.dataset.qsd)) { s.value = c.dataset.qsd; renderTL(); } });
