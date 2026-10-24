@@ -175,14 +175,16 @@ window.transferDlg = from0 => {
     <p class="small muted">Phần thi và lệ phí được tính lại theo lần thi mới nhất và ngày thi của đợt mới. Tiền bảo lưu tự trừ vào khoản Hình / thẻ GPLX nếu đợt mới có thu; học viên chỉ đóng phần thêm. Đăng ký mới ở trạng thái chưa nộp, thu tiền sau.</p>`, () => {
     const plan = transferPlan($('#trFrom').value, $('#trTo').value, [...document.querySelectorAll('.trK:checked')].map(i => i.value), $('#trReg').value).filter(x => x.ok);
     if (!plan.length) return toast('Không có ai để chuyển');
+    if (capBlock($('#trTo').value, plan.length)) return;
     let n = 0, sum = 0, cr = 0; const made = [];
     for (const x of plan) { const r = makeRetake(x.r.cccd, $('#trReg').value, $('#trTo').value, `Chuyển từ đợt ${fd(x.r.examDate)} (${x.o.l})`, x.r.phone || phoneOf(x.r.cccd), ''); if (!r) continue; n++; cr += r.creditApplied || 0; sum += regTotals(r).due; made.push(r); }
+    setTimeout(() => capNotice($('#trTo').value), 0);
     logA('Chuyển Trượt/Vắng sang đợt mới', '', '', `${n} người · đợt ${fd($('#trFrom').value)} → ${fd($('#trTo').value)} · phải thu ${money(sum)}${cr ? ' · trừ bảo lưu ' + money(cr) : ''}`);
     save(); renderAll();
     dialog(`<h2>Đã chuyển ${n} người sang đợt ${fd($('#trTo').value)}</h2><p>Tổng phải thu <b>${money(sum)} đ</b>${cr ? `, đã trừ tiền bảo lưu <b>${money(cr)} đ</b>` : ''}. Tất cả đang ở trạng thái chưa nộp đủ.</p><p class="small">Bước tiếp theo: gửi tin nhắn nhắc nộp tiền và lịch thi cho họ.</p>`, () => msgDlg(made.map(r => r.id), 'no'), 'Tạo tin nhắn nhắc nộp tiền');
   }, 'Chuyển sang đợt mới');
   const prev = () => { const plan = transferPlan($('#trFrom').value, $('#trTo').value, [...document.querySelectorAll('.trK:checked')].map(i => i.value), $('#trReg').value), ok = plan.filter(x => x.ok);
-    $('#trPrev').innerHTML = `<div class="small" style="margin-bottom:6px"><b>${ok.length}</b> người sẽ được chuyển · phải thu ${money(ok.reduce((a, x) => a + x.fee, 0))} đ${ok.some(x => x.credit) ? ` · trừ bảo lưu ${money(ok.reduce((a, x) => a + x.credit, 0))} đ` : ''}${plan.length - ok.length ? ` · bỏ qua ${plan.length - ok.length}` : ''}</div>
+    $('#trPrev').innerHTML = capLine($('#trTo').value, ok.length) + `<div class="small" style="margin-bottom:6px"><b>${ok.length}</b> người sẽ được chuyển · phải thu ${money(ok.reduce((a, x) => a + x.fee, 0))} đ${ok.some(x => x.credit) ? ` · trừ bảo lưu ${money(ok.reduce((a, x) => a + x.credit, 0))} đ` : ''}${plan.length - ok.length ? ` · bỏ qua ${plan.length - ok.length}` : ''}</div>
       <table><tr><th>Họ tên</th><th>KQ đợt cũ</th><th>Thi lại</th><th class="num">Lệ phí</th><th class="num">Trừ bảo lưu</th><th>Ghi chú</th></tr>${plan.map(x => `<tr class="${x.ok ? '' : 'kdel'}"><td>${esc(x.r.name)}</td><td>${esc(x.o.l)}</td><td>${x.ok ? ndLabel(x.need) : ''}</td><td class="num">${x.ok ? money(x.fee) : ''}</td><td class="num">${x.credit ? money(x.credit) : ''}</td><td class="small">${esc(x.why)}${x.hold ? `${x.why ? ' · ' : ''}giữ bảo lưu ${money(x.hold)} (Hình trừ khi thi Hình; thẻ GPLX giữ đến khi đạt)` : ''}</td></tr>`).join('')}</table>`; };
   ['trFrom', 'trTo', 'trReg'].forEach(i => $('#' + i).addEventListener('input', prev)); document.querySelectorAll('.trK').forEach(i => i.addEventListener('change', prev)); prev();
 };
@@ -386,7 +388,7 @@ function creditRecalc(){ for (const c of S.credits || []) { c.uses = S.pays.filt
   if (c.status === 'open' || c.status === 'used') c.status = creditTotalLeft(c) ? 'open' : 'used';
   if (c.status === 'open') { const ev = H.ev.get(c.cccd); if (ev && ev.status === 'DAT' && ev.passDate && ev.passDate > c.fromExam) { c.status = 'passed'; c.passed = ev.passDate; } } } }
 $('#tlBulkHen').onclick = () => printHen([...tlSel]);
-$('#tlBulkMsg').onclick = () => msgDlg([...tlSel], 'lich');
+$('#tlBulkSms').onclick = () => msgDlg([...tlSel], 'lich');
 $('#tlTransfer').onclick = () => transferDlg($('#tlDot').value);
 /* File sao kê mẫu theo bố cục sao kê tài khoản VietinBank (dữ liệu giả để tập dùng) */
 function skSampleWb(){
@@ -451,7 +453,8 @@ function renderQSide(){
   const pct = (v, n) => n ? (v / n * 100).toFixed(1) + '%' : '0';
   const card = o => { const tot = o.n + o.moi, done = dotDone(o.d), dn = (dotOf(o.d) || {}).name;
     return `<div class="qs-dot${done ? ' done' : ''}${o.today && !done ? ' new' : ''}" data-qsd="${o.d}" title="Bấm để xem danh sách đợt này">
-      <div class="qs-hd"><div><b>${fd(o.d)}</b>${dn ? ` <span class="small muted">${esc(dn)}</span>` : ''}<div class="small muted">${done ? 'Đã thi' : o.d < t ? 'Chờ nạp kết quả' : 'Còn ' + Math.round((new Date(o.d) - new Date(t)) / 864e5) + ' ngày'}</div></div><span class="n${bump(o.d) ? ' qs-bump' : ''}">${tot}</span></div>
+      <div class="qs-hd"><div><b>${fd(o.d)}</b>${dn ? ` <span class="small muted">${esc(dn)}</span>` : ''}<div class="small muted">${done ? 'Đã thi' : o.d < t ? 'Chờ nạp kết quả' : 'Còn ' + Math.round((new Date(o.d) - new Date(t)) / 864e5) + ' ngày'}</div></div><span class="n${bump(o.d) ? ' qs-bump' : ''}">${tot}${capOf(o.d).lim ? `<span class="small muted">/${capOf(o.d).lim}</span>` : ''}</span></div>
+      ${capOf(o.d).lim && !done ? capBar(o.d) : ''}
       <div class="qs-grid"><div>Lại LT<b>${o.LT}</b></div><div>Lại Hình<b>${o.H}</b></div><div>Lại LT+H<b>${o.LH}</b></div></div>
       ${o.n ? `<div class="qs-bar"><i style="width:${pct(o.LT, o.n)};background:#3b82c4"></i><i style="width:${pct(o.H, o.n)};background:#d99a1e"></i><i style="width:${pct(o.LH, o.n)};background:#7a5cc2"></i></div>` : ''}
       <div class="qs-meta"><span>${o.moi ? `+ ${o.moi} nạp mới · ` : ''}${o.owe ? `<span class="r-T">${o.owe} chưa nộp đủ</span>` : o.n ? 'đã nộp đủ' : 'chưa có ai'}</span><span>${o.today ? `<b class="r-D">+${o.today} hôm nay</b>` : o.last ? 'mới nhất ' + fd(o.last.slice(0, 10)) : ''}</span></div></div>`; };
@@ -463,3 +466,105 @@ function renderQSide(){
     <div class="small muted" style="margin-top:4px"><span style="color:#3b82c4">■</span> LT <span style="color:#d99a1e">■</span> Hình <span style="color:#7a5cc2">■</span> LT+H · không tính đăng ký đã hủy</div>`;
 }
 $('#qSide').addEventListener('click', e => { const c = e.target.closest('[data-qsd]'); if (!c) return; switchTab('tl'); const s = $('#tlDot'); if ([...s.options].some(o => o.value === c.dataset.qsd)) { s.value = c.dataset.qsd; renderTL(); } });
+
+/* ---------------- GIỚI HẠN SỐ NGƯỜI THI LẠI MỖI ĐỢT ----------------
+   Đợt có điền giới hạn: nhắc khi còn ≤ "nhắc khi còn" chỗ, chặn nhập thêm khi đủ. Không điền = không giới hạn. */
+function capOf(d){
+  const o = dotOf(d), lim = o && +o.limit > 0 ? +o.limit : 0, warn = o && o.warnAt != null ? +o.warnAt : 10;
+  const n = S.regs.filter(r => r.kind === 'lai' && !r.cancelled && r.examDate === d).length;
+  return { lim, n, warn, left: lim ? Math.max(0, lim - n) : Infinity, full: !!lim && n >= lim, near: !!lim && n < lim && lim - n <= warn };
+}
+function capBlock(d, add){
+  const c = capOf(d); if (!d || !c.lim || c.n + (add || 1) <= c.lim) return false;
+  blockMsg('Đợt thi lại đã đủ số lượng', `<div class="alert bad">Đợt <b>${esc(dotLabel(d))}</b> giới hạn <b>${c.lim}</b> người thi lại, hiện đã có <b>${c.n}</b>${add > 1 ? `; không thêm được ${add} người (còn ${c.left} chỗ)` : ''}.</div><p class="small">Không nhập thêm được vào đợt này. Chọn đợt khác, hoặc nếu Hội đồng cho nhận thêm thì tăng giới hạn ở tab <b>Đợt thi → Sửa đợt</b> (cần quyền quản lý).</p>`);
+  return true;
+}
+function capNotice(d){
+  const c = capOf(d); if (!c.lim || !(c.full || c.near)) return;
+  dialog(`<h2>${c.full ? 'Đợt đã ĐỦ số lượng' : 'Đợt sắp đủ số lượng'}</h2><div class="alert ${c.full ? 'bad' : ''}">Đợt <b>${esc(dotLabel(d))}</b>: <b>${c.n}/${c.lim}</b> người thi lại · ${c.full ? 'từ giờ tool <b>chặn</b> không cho nhập thêm vào đợt này.' : `chỉ còn <b>${c.left}</b> chỗ.`}</div>${capBar(d)}<p class="small muted">Người đến sau hãy đăng ký vào đợt kế tiếp.</p>`, () => {}, 'Đã hiểu');
+}
+function capLine(d, adding){
+  const c = capOf(d); if (!d || !c.lim) return '';
+  const after = c.n + (adding || 0), cls = c.full || after > c.lim ? 'bad' : c.near ? '' : 'ok';
+  return `<div class="alert ${cls}" style="margin-bottom:8px">Đợt ${fd(d)}: <b>${c.n}/${c.lim}</b> người thi lại${adding ? ` → sau khi thêm: <b>${after}/${c.lim}</b>` : ''} · ${c.full ? '<b>ĐÃ ĐỦ, không nhận thêm</b>' : after > c.lim ? `<b>vượt ${after - c.lim} người, không chuyển được</b>` : `còn ${c.left} chỗ`}</div>`;
+}
+function capBar(d){
+  const c = capOf(d); if (!c.lim) return ''; const p = Math.min(100, c.n / c.lim * 100), col = c.full ? 'var(--bad)' : c.near ? 'var(--warn)' : 'var(--ok)';
+  return `<div style="margin:5px 0 2px"><div style="height:7px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:100%;width:${p}%;background:${col}"></div></div><div class="small" style="display:flex;justify-content:space-between"><span>${c.n}/${c.lim} người</span><b style="color:${col}">${c.full ? 'ĐÃ ĐỦ' : c.near ? 'sắp đủ · còn ' + c.left : 'còn ' + c.left + ' chỗ'}</b></div></div>`;
+}
+
+/* ---------------- DẤU "!" GIẢI THÍCH CHỨC NĂNG ----------------
+   Bấm (hoặc rê chuột) vào dấu ! để đọc nhanh chức năng đó làm gì. Dấu ! cạnh tiêu đề trang: tóm tắt cả trang. */
+const PAGE_HELP = {
+  home: ['Việc cần làm: nợ, ca chưa chốt quỹ, đợt chưa nạp kết quả, người trượt/vắng chưa đăng ký lại, tiền bảo lưu… bấm vào từng dòng để đi tới nơi xử lý.', 'Đợt thi sắp tới, tiền thu hôm nay, tình trạng lưu trữ.'],
+  quay: ['Gõ CCCD / họ tên rồi Enter, hoặc quét QR trên CCCD gắn chip.', 'Bên trái: hạn bảo lưu từng phần, lịch sử thi. Bên phải: phần phải thi lại, lệ phí, đăng ký, thu tiền, in phiếu, giấy hẹn, trừ tiền bảo lưu.', 'Khung bên phải màn hình: số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H), giới hạn số người; đợt vừa có người nộp tự lên đầu. Bấm thẻ đợt để mở danh sách.', 'Phím tắt: F2 tra cứu · F4 thu tiền · F8 in phiếu.'],
+  tl: ['Danh sách đăng ký thi lại theo đợt; lọc theo thanh toán, phần thi, kết quả đợt.', 'Tick nhiều dòng để: thu đủ, đổi đợt, xoá, in giấy hẹn, soạn tin nhắn.', '“Xuất DS thi lại (mẫu chuẩn)”: file gửi Hội đồng, có cột Ngày bảo lưu và cột Vắng / có thi.', '“Chuyển Trượt/Vắng sang đợt mới”: đăng ký lại một lần cho cả đợt cũ.', 'Ô “Đăng ký nhanh nhiều người”: dán danh sách CCCD (+ SĐT) để đăng ký hàng loạt.'],
+  mtl: ['Người chưa đạt, chưa đăng ký thi lại: lọc theo phần thi, tình trạng liên hệ, đợt mời.', 'Ghi lịch sử gọi điện / nhắn tin, soạn tin mời, xuất Excel để gọi.'],
+  rut: ['Ghi nhận học viên rút hồ sơ (ngày, lý do, tiền hoàn, giấy tờ trả lại), in biên bản.', 'Người đã rút bị chặn đăng ký cho tới khi bấm “Nộp lại hồ sơ”.'],
+  ds: ['Toàn bộ thí sinh trong dữ liệu kết quả: trạng thái, phần cần thi, hạn bảo lưu từng phần.', 'Lọc theo tình trạng, ngày thi lần cuối, phần cần thi; xuất Excel.'],
+  dsoat: ['So kết quả kỳ thi của Hội đồng với danh sách đăng ký trong tool: ai thi mà chưa thu tiền (thu sót), ai đăng ký mà không có tên, lệch lệ phí.', 'Bổ sung đăng ký cho người thu sót ngay trên bảng.'],
+  tk: ['Tổng kết tiền thi lại theo đợt / nhóm đối tượng / phần thi / từng khoản (duyệt HS, LT, Hình, thẻ GPLX).', 'Chỉ tính tiền học viên thực đóng thêm; tiền bảo lưu chuyển từ đợt trước (đã bàn giao) ghi riêng, không tính lại.', 'Xuất Excel tổng kết, in Biên bản bàn giao lệ phí (số tiền bằng chữ).'],
+  thu: ['Sổ thu: phải thu, đã thu, còn nợ từng đăng ký; nhật ký phiếu thu / chi (chỉ ghi thêm, không sửa).', 'Đối chiếu sao kê ngân hàng: nạp file sao kê, tự ghép CCCD trong nội dung chuyển khoản, ghi thu hàng loạt không trùng.', 'Tiền bảo lưu: Hình 70k (vắng cả 2 phần / trượt LT từ 01/07/2026), thẻ GPLX 115k (giữ đến khi đạt). Tự trừ khi đăng ký đợt sau.', 'Tiền cần xử lý: người đã nộp nhưng không có tên trong kết quả.'],
+  dot: ['Khai báo ngày sát hạch; chỉ đăng ký được vào đợt có trong danh sách.', 'Mỗi đợt: tên, giờ có mặt, địa điểm (in giấy hẹn), giới hạn số người thi lại (nhắc khi gần đủ, chặn khi đủ), mã QR.', 'Đợt đã có kết quả: nút “Chuyển Trượt/Vắng…”. Đợt sắp thi: “In giấy hẹn cả đợt”.'],
+  data: ['1. Nạp file kết quả sát hạch của Hội đồng sau mỗi kỳ (nhiều file cùng lúc được).', '2. Chọn thư mục lưu dữ liệu (bắt buộc để thu tiền); sao lưu tự động và quản lý file sao lưu.', '3. Quy tắc tính phí, bảng giá. Tài khoản ngân hàng / QR / giấy hẹn. Người dùng và phân quyền. Thùng rác. Kiểm tra toàn vẹn.'],
+  log: ['Nhật ký mọi thao tác: ai làm, lúc nào, nội dung. Dùng để tra lại khi có tranh chấp.'],
+  khoa: ['Khóa mới dự kiến (không liên quan thi lại): đợt, ngày sát hạch dự kiến, giới hạn, các lần nhận hồ sơ, rút hồ sơ, ghi chú đối chiếu.', 'Thống kê, xuất Excel từng đợt hoặc toàn bộ.'],
+  quy: ['Chốt quỹ cuối ca: đếm tiền mặt theo mệnh giá, so với sổ, ghi chênh lệch, in biên bản bàn giao.', 'Khoản đã chốt thì không sửa / xoá được nếu chưa huỷ chốt (cần quyền quản lý).'],
+  bc: ['Báo cáo tháng / quý / năm: thu chi, đăng ký thi lại, kết quả sát hạch, rút hồ sơ, khóa mới; xuất Excel.'],
+  hd: ['Quy trình làm việc, bảng lệ phí đang áp dụng (in dán ở quầy), phím tắt, các phiên bản đã cập nhật.']
+};
+const HINTS = [
+  ['#qGo', 'Tra cứu theo CCCD (12 số) hoặc họ tên. Máy quét QR CCCD: quét thẳng vào ô, tool tự lấy CCCD, họ tên, ngày sinh, nơi cư trú.'],
+  ['#qSide h2', 'Số lượng đăng ký thi lại từng đợt, cập nhật ngay khi nhập. Thẻ viền xanh = có người nộp hôm nay. Thanh màu = giới hạn số người (xanh còn chỗ, vàng sắp đủ, đỏ đã đủ). Bấm thẻ để mở danh sách đợt đó.'],
+  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột “Vắng / có thi”: Có thi, Vắng LT, Vắng H, Vắng LT+H, Không thi H (trượt LT), Không có tên trong KQ → biết tìm biên bản thi nào.'],
+  ['#tlExport', 'Bảng chi tiết đầy đủ: lệ phí từng khoản, đã thu, còn nợ, kết quả đợt, vắng / có thi, hạn bảo lưu.'],
+  ['#tlTransfer', 'Sau khi nạp kết quả: đăng ký lại một lần tất cả người Trượt / Vắng của đợt cũ sang đợt mới. Xem trước phần thi, lệ phí, người bị bỏ qua; tiền bảo lưu tự trừ. Kiểm tra giới hạn số người của đợt mới.'],
+  ['#tlBulkHen', 'In giấy hẹn sát hạch (2 tờ / A4) cho các dòng đã tick: ngày, giờ, địa điểm, lệ phí còn nợ và QR chuyển khoản đúng số tiền.'],
+  ['#tlBulkSms', 'Soạn tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi…), tự điền tên, số tiền, STK. Sao chép hoặc xuất Excel; “Ghi đã báo” lưu vào lịch sử liên hệ.'],
+  ['#tlBulkPay', 'Ghi thu đủ số còn nợ cho tất cả dòng đã tick (cùng ngày, cùng hình thức).'],
+  [['#t-thu', 'Đối chiếu sao kê'], 'Nạp file Excel sao kê tài khoản. Tool lấy các khoản tiền vào, tìm CCCD (12 số) trong nội dung chuyển khoản để ghép học viên còn nợ, ghi thu dạng chuyển khoản kèm mã giao dịch. Nạp lại cùng file không bị ghi trùng. Nút “Tải file sao kê mẫu” để tập.'],
+  [['#t-thu', 'Tiền bảo lưu'], 'LT 60k và phí duyệt 50k không hoàn. Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026). Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt. Tool tự tạo khi nạp kết quả, tự trừ khi đăng ký đợt sau (phiếu BL, không vào tiền mặt). Có nút Hoàn tiền / Huỷ.'],
+  [['#t-thu', 'Tiền cần xử lý'], 'Người đã nộp tiền nhưng file kết quả không có tên: chọn bảo lưu toàn bộ, hoàn tiền, hoặc giữ nguyên.'],
+  [['#t-thu', 'Nhật ký thu'], 'Mọi phiếu thu (PT), phiếu chi (PC), phiếu chuyển bảo lưu (BL) có số liên tục, không sửa được; xoá nhầm vào Thùng rác.'],
+  [['#t-dot', 'Các đợt sát hạch'], 'Thêm / sửa đợt: ngày, tên, giờ có mặt, địa điểm, giới hạn số người thi lại. Có giới hạn: tool nhắc khi còn ít chỗ (mặc định 10) và chặn nhập thêm khi đủ; để trống = không giới hạn. QR VietQR tự tạo (in sắc nét), có thể dùng ảnh QR riêng.'],
+  ['#tkBB', 'Biên bản bàn giao lệ phí cho Hội đồng / công ty: số người, đơn giá, thành tiền từng khoản, tổng bằng chữ. Chỉ tính tiền thực thu; tiền bảo lưu từ đợt trước ghi riêng, không bàn giao lại.'],
+  ['#tkExport', 'Xuất Excel tổng kết: sheet tổng hợp theo nhóm + danh sách chi tiết, có chỗ ký bàn giao.'],
+  [['#t-data', '1. File kết quả'], 'Nạp file tổng hợp kết quả của Hội đồng (TongHop_…xlsx) sau mỗi kỳ. Tool tự cộng dồn, tự bảo lưu tiền cho người vắng/trượt và hiện bảng tóm tắt Đạt / Trượt / Vắng.'],
+  [['#t-data', '2. Nơi lưu'], 'Chọn thư mục trên máy (vd D:\\SoSatHachA1) để lưu sổ thu và sao lưu tự động. Chưa chọn thì không thu tiền được.'],
+  [['#t-data', 'Tài khoản nhận tiền'], 'Ngân hàng, số tài khoản, chủ tài khoản dùng tạo mã QR VietQR trên phiếu thu, giấy hẹn, hộp Thu tiền. Địa điểm sát hạch, giấy tờ mang theo in trên giấy hẹn. Đổi tài khoản cần quyền quản lý.'],
+  [['#t-data', 'Người dùng'], 'Tạo người dùng có mã PIN và quyền: Quầy (thu tiền), Kế toán (hoàn tiền, chốt quỹ), Quản lý (xoá, đổi cài đặt).'],
+  [['#t-data', '4. Thùng rác'], 'Đăng ký, khoản thu, rút hồ sơ đã xoá nằm ở đây, khôi phục được. Xoá vĩnh viễn cần quyền quản lý.'],
+  ['#rSave', 'Lưu bản ghi rút hồ sơ; chọn in biên bản nếu cần học viên ký.'],
+  ['#qyGo', 'Chốt ca: khoá các phiếu thu tiền mặt / chuyển khoản của người thu đến ngày đã chọn, in biên bản bàn giao quỹ.'],
+  ['#kExportAll', 'Xuất bảng thống kê nhận hồ sơ mới các đợt đang lọc.'],
+  ['#mtlExport', 'Xuất danh sách người cần mời thi lại (có SĐT, tình trạng liên hệ) để gọi điện.'],
+  ['#dsExportX', 'Xuất bảng đối soát kỳ thi: khớp, thu sót, không có tên, lệch tiền.']
+];
+function hintFind(sel){
+  if (typeof sel === 'string') return document.querySelector(sel);
+  const [sec, txt] = sel; return [...document.querySelectorAll(sec + ' h2')].find(h => h.textContent.trim().startsWith(txt));
+}
+function installHints(){
+  HINTS.forEach(([sel, txt], i) => { const el = hintFind(sel); if (!el || el.dataset.hinted) return; el.dataset.hinted = '1';
+    const b = `<button type="button" class="hint" data-hint="${i}" aria-label="Giải thích chức năng" title="${esc(txt)}">!</button>`;
+    if (el.tagName === 'H2') { el.insertAdjacentHTML('beforeend', ' ' + b); return; }
+    const w = document.createElement('span'); w.className = 'hw'; el.parentNode.insertBefore(w, el); w.appendChild(el); w.insertAdjacentHTML('beforeend', b); });
+  const t = $('#pgTitle'); if (t && !$('#pgHint')) t.insertAdjacentHTML('afterend', '<button type="button" class="hint hint-pg" id="pgHint" aria-label="Trang này có những chức năng gì">!</button>');
+}
+function hintShow(btn, html){
+  let pop = $('#hintPop'); if (!pop) { pop = document.createElement('div'); pop.id = 'hintPop'; pop.setAttribute('role', 'tooltip'); document.body.appendChild(pop); }
+  pop.innerHTML = html; pop.hidden = false; const r = btn.getBoundingClientRect(), w = Math.min(380, innerWidth - 24);
+  pop.style.width = w + 'px'; pop.style.left = Math.max(12, Math.min(innerWidth - w - 12, r.left - 20)) + 'px';
+  const below = r.bottom + 8 + pop.offsetHeight < innerHeight; pop.style.top = (below ? r.bottom + 8 : Math.max(8, r.top - pop.offsetHeight - 8)) + 'px';
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('.hint');
+  if (!b) { const pop = $('#hintPop'); if (pop && !e.target.closest('#hintPop')) pop.hidden = true; return; }
+  e.preventDefault(); e.stopPropagation();
+  if (b.id === 'pgHint') { const t = ((document.querySelector('section.tab.on') || {}).id || 't-quay').slice(2), L = PAGE_HELP[t] || [];
+    return hintShow(b, `<b>${esc((PAGES[t] || ['Trang này'])[0])} — làm được gì?</b><ul>${L.map(x => `<li>${esc(x)}</li>`).join('')}</ul><div class="small muted">Các dấu <span class="hint" style="pointer-events:none">!</span> nhỏ trong trang giải thích từng nút. Xem đầy đủ ở tab Hướng dẫn.</div>`); }
+  const h = HINTS[+b.dataset.hint]; if (h) hintShow(b, esc(h[1]));
+}, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { const pop = $('#hintPop'); if (pop) pop.hidden = true; } });
+addEventListener('scroll', () => { const pop = $('#hintPop'); if (pop) pop.hidden = true; }, true);
+installHints(); window.hintMissing = () => HINTS.filter(([sel]) => !hintFind(sel)).map(x => x[0]);

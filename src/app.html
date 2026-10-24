@@ -95,6 +95,14 @@ tr.click{cursor:pointer}
 .chip.on{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 .chip .c{font-family:var(--mono);opacity:.75}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.hint{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:0;padding:0;margin:0 0 0 5px;vertical-align:middle;background:var(--warn);color:#1a1a1a;font:800 11.5px/1 var(--font);cursor:help;flex:none;opacity:.85}
+.hint:hover,.hint:focus-visible{opacity:1;outline:2px solid var(--brand);outline-offset:1px}
+.hw{display:inline-flex;align-items:center;gap:0;flex:none}
+#pgTitle{display:inline-block}
+.hint-pg{width:20px;height:20px;font-size:13px;margin-left:8px;vertical-align:4px}
+#hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
+#hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
+@media print{.hint,#hintPop{display:none!important}}
 .qwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
 .qwrap .qmain{min-width:0}
 .qside{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:12px 12px 8px}
@@ -290,7 +298,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <button class="b s" id="tlBulkDot" disabled>Đổi đợt thi…</button>
       <button class="b s" id="tlBulkDel" disabled>Xóa các dòng đã chọn</button>
       <button class="b s" id="tlBulkHen" disabled>In giấy hẹn</button>
-      <button class="b s" id="tlBulkMsg" disabled>Soạn tin nhắn…</button>
+      <button class="b s" id="tlBulkSms" disabled>Soạn tin nhắn…</button>
       <span style="flex:1"></span><button class="b s p" id="tlTransfer" title="Đăng ký lại cho người Trượt / Vắng của đợt đã có kết quả">Chuyển Trượt/Vắng sang đợt mới…</button>
     </div>
   </div>
@@ -384,7 +392,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
 <section class="tab" id="t-dot">
   <div class="panel"><h2>Các đợt sát hạch dự kiến</h2>
     <p class="small muted">Khai báo trước các ngày sát hạch. Khi đăng ký thi lại hoặc nạp hồ sơ mới, chỉ chọn được trong danh sách này. Mỗi đợt dán một mã QR (bấm vào ô QR rồi nhấn Ctrl+V, hoặc chọn file ảnh); phiếu thu của đợt nào sẽ in kèm mã QR của đợt đó.</p>
-    <div class="row"><label class="f">Ngày sát hạch<input type="date" id="dotNewDate"></label><label class="f" style="flex:1;min-width:200px">Tên / ghi chú đợt<input id="dotNewName" placeholder="vd: K203 · Hội đồng GLĐ"></label><button class="b p" id="dotAdd">Thêm đợt</button></div>
+    <div class="row"><label class="f">Ngày sát hạch<input type="date" id="dotNewDate"></label><label class="f" style="flex:1;min-width:200px">Tên / ghi chú đợt<input id="dotNewName" placeholder="vd: K203 · Hội đồng GLĐ"></label><label class="f" style="width:150px">Giới hạn số người thi lại<input id="dotNewLim" inputmode="numeric" placeholder="để trống = không giới hạn"></label><button class="b p" id="dotAdd">Thêm đợt</button></div>
     <div id="dotList" style="margin-top:12px"></div>
   </div>
   <div class="panel"><h2>Đợt thi đã đăng ký: phải thu, đã thu, còn nợ</h2><div class="tw" id="dotReg"></div></div>
@@ -818,7 +826,7 @@ const dotDone = d => !!(d && H.maxDate && d <= H.maxDate && H.attempts.some(a =>
 const defaultDot = () => { const t = todayISO(); const o = dotsSorted().find(o => o.date >= t && !dotDone(o.date)); return o ? o.date : ''; };
 function dotOptions(value){
   const t = todayISO();
-  let opts = dotsSorted().filter(o => (o.date >= t && !dotDone(o.date)) || o.date === value).map(o => `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${esc(dotLabel(o.date))}</option>`).join('');
+  let opts = dotsSorted().filter(o => (o.date >= t && !dotDone(o.date)) || o.date === value).map(o => { const c = capOf(o.date); return `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${esc(dotLabel(o.date))}${c.lim ? (c.full ? ` — ĐÃ ĐỦ ${c.n}/${c.lim}` : ` — ${c.n}/${c.lim}, còn ${c.left} chỗ`) : ''}</option>`; }).join('');
   if (value && !dotOf(value)) opts = `<option value="${value}" selected>${fd(value)}</option>` + opts;
   return opts || '<option value="">Chưa có đợt nào, thêm ở tab Đợt thi</option>';
 }
@@ -832,6 +840,7 @@ function renderDots(){
     return `<div class="dot ${o.date < t ? 'past' : ''}">
       <div class="hd"><b>${fd(o.date)}</b>${done ? '<span class="pill p-DAT">Đã có kết quả</span>' : o.date < t ? '<span class="pill p-VANG">Chờ nạp KQ</span>' : '<span class="pill p-THILAI">Sắp thi</span>'}</div>
       <div class="dotname">${o.name ? esc(o.name) : '<span class="muted">(chưa đặt tên)</span>'}</div>
+      ${capOf(o.date).lim ? capBar(o.date) : ''}
       <div class="small">${lai} người thi lại${owe ? ` · <span class="r-T">${owe} chưa nộp đủ</span>` : ''}${S.cfg.examDate === o.date ? ' · <b>đang dùng tính bảo lưu</b>' : ''}</div>
       ${o.time || o.place ? `<div class="small">${o.time ? 'Có mặt ' + esc(o.time) : ''}${o.time && o.place ? ' · ' : ''}${esc(o.place || '')}</div>` : ''}
       <div class="qrzone" tabindex="0" data-qr="${o.date}" title="Bấm vào rồi Ctrl+V để dán ảnh QR khác">${o.qrMode === 'image' && o.qr ? `<img src="${o.qr}" alt="QR đợt ${fd(o.date)}">` : `<div style="width:150px">${qrSvg(vietqr(0, ''), '150px')}</div>`}</div>
@@ -910,7 +919,7 @@ function qrCropDlg(img, date){
 }
 window.recropQr = date => { const o = dotOf(date); if (!o || !o.qr) return; const img = new Image(); img.onload = () => qrCropDlg(img, date); img.src = o.qr; };
 $('#dotAdd').onclick = () => { const d = $('#dotNewDate').value; if (!d) return toast('Chọn ngày sát hạch');
-  if (dotOf(d)) return toast('Đợt ' + fd(d) + ' đã có'); S.dots.push({ date: d, name: $('#dotNewName').value.trim(), qr: '' }); logA('Thêm đợt thi', '', '', fd(d)); $('#dotNewDate').value = ''; $('#dotNewName').value = ''; save(); renderAll(); toast('Đã thêm đợt ' + fd(d)); };
+  if (dotOf(d)) return toast('Đợt ' + fd(d) + ' đã có'); const lim = parseInt($('#dotNewLim').value.replace(/\D/g, '')) || 0; S.dots.push({ date: d, name: $('#dotNewName').value.trim(), qr: '', limit: lim || undefined, warnAt: lim ? 10 : undefined }); logA('Thêm đợt thi', '', '', fd(d) + (lim ? ` · giới hạn ${lim} người` : '')); $('#dotNewDate').value = ''; $('#dotNewName').value = ''; $('#dotNewLim').value = ''; save(); renderAll(); toast('Đã thêm đợt ' + fd(d)); };
 $('#dotList').addEventListener('change', e => {
   const n = e.target.dataset.dotname; if (n) { dotOf(n).name = e.target.value.trim(); save(); renderAll(); }
   const f = e.target.dataset.qrfile; if (f && e.target.files[0]) loadQr(e.target.files[0], f);
@@ -929,16 +938,18 @@ $('#dotList').addEventListener('click', e => {
 function editDot(d0, vals, err){
   const o = dotOf(d0); if (!o) return;
   const regs = S.regs.filter(r => r.examDate === d0), live = regs.filter(r => !r.cancelled);
-  const v = vals || { date: o.date, name: o.name || '', time: o.time || '', place: o.place || '' };
+  const v = vals || { date: o.date, name: o.name || '', time: o.time || '', place: o.place || '', limit: o.limit || '', warnAt: o.warnAt ?? 10 };
   dialog(`<h2>Sửa đợt ${fd(d0)}</h2>${err ? `<div class="alert bad">${err}</div>` : ''}
     <div class="row"><label class="f">Ngày sát hạch<input type="date" id="edDate" value="${v.date}"></label>
     <label class="f" style="flex:1;min-width:240px">Tên / ghi chú đợt<input id="edName" value="${esc(v.name)}" placeholder="vd: A1 CSHN Tháng 11"></label></div>
     <div class="row" style="margin-top:8px"><label class="f">Giờ có mặt<input id="edTime" value="${esc(v.time || '')}" placeholder="vd: 6h30"></label><label class="f" style="flex:1;min-width:240px">Địa điểm sát hạch<input id="edPlace" value="${esc(v.place || '')}" placeholder="${esc(S.cfg.henPlace || 'vd: Sân sát hạch …')}"></label></div>
+    <div class="row" style="margin-top:8px"><label class="f">Giới hạn số người thi lại<input id="edLim" inputmode="numeric" value="${esc(String(v.limit || ''))}" placeholder="trống = không giới hạn"></label><label class="f">Nhắc khi còn (chỗ)<input id="edWarn" inputmode="numeric" value="${esc(String(v.warnAt ?? 10))}"></label><span class="small muted" style="flex:1">Đang có <b>${capOf(d0).n}</b> người thi lại. Có giới hạn thì tool nhắc khi gần đủ và <b>chặn nhập thêm</b> khi đủ. Đổi giới hạn cần quyền quản lý.</span></div>
     ${regs.length ? `<div class="alert" style="margin-top:10px">Đợt này có <b>${regs.length}</b> đăng ký${live.length !== regs.length ? ` (${regs.length - live.length} đã hủy)` : ''}. Nếu đổi ngày, tất cả được chuyển sang ngày mới, phần thi và lệ phí được kiểm tra lại theo hạn bảo lưu tại ngày mới.</div>` : ''}`, () => {
-    const n = { date: $('#edDate').value, name: C.norm($('#edName').value), time: C.norm($('#edTime').value), place: C.norm($('#edPlace').value) };
+    const n = { date: $('#edDate').value, name: C.norm($('#edName').value), time: C.norm($('#edTime').value), place: C.norm($('#edPlace').value), limit: parseInt($('#edLim').value.replace(/\D/g, '')) || '', warnAt: Math.max(0, parseInt($('#edWarn').value.replace(/\D/g, '')) || 0) };
+    const limCh = String(n.limit) !== String(o.limit || '') || (n.limit && n.warnAt !== (o.warnAt ?? 10));
     const again = m => setTimeout(() => editDot(d0, n, m), 0);
     if (!n.date) return again('Chọn ngày sát hạch.');
-    if (n.date === d0 && n.name === (o.name || '') && n.time === (o.time || '') && n.place === (o.place || '')) return toast('Không có thay đổi');
+    if (n.date === d0 && n.name === (o.name || '') && n.time === (o.time || '') && n.place === (o.place || '') && !limCh) return toast('Không có thay đổi');
     if (n.date !== d0) {
       if (dotOf(n.date)) return again(`Đã có đợt ngày ${fd(n.date)}. Chọn ngày khác (hoặc chuyển đăng ký sang đợt đó ở tab Đăng ký thi lại).`);
       if (dotDone(d0)) return again(`Đợt ${fd(d0)} đã có kết quả sát hạch, không đổi ngày được.`);
@@ -956,12 +967,14 @@ function editDot(d0, vals, err){
       o.name = n.name;
       if (n.time !== (o.time || '') || n.place !== (o.place || '')) parts.push(`giờ/địa điểm: ${n.time || '-'} · ${n.place || '-'}`);
       o.time = n.time; o.place = n.place;
+      if (limCh) { parts.push(`giới hạn ${o.limit || 'không'} → ${n.limit || 'không giới hạn'}${n.limit ? ', nhắc khi còn ' + n.warnAt : ''}`); o.limit = n.limit || undefined; o.warnAt = n.limit ? n.warnAt : undefined; }
       logA('Sửa đợt thi', '', '', parts.join('; ')); save(); rebuild();
       const bad = regs.filter(r => r.kind === 'lai' && !r.cancelled && regIssues(r).length);
       if (bad.length) blockMsg('Cần tính lại phần thi / lệ phí', `<p>Sau khi đổi sang ngày ${fd(n.date)}, <b>${bad.length}</b> đăng ký không còn khớp hạn bảo lưu:</p><div class="small">${bad.slice(0, 10).map(r => `<b>${esc(r.name)}</b>: ${esc(regIssues(r).join('; '))}`).join('<br>')}${bad.length > 10 ? '<br>…' : ''}</div><p class="small">Vào tab <b>Đăng ký thi lại</b>, bấm “Tính lại tất cả theo đúng đợt”.</p>`);
       else toast('Đã lưu đợt ' + fd(n.date));
     };
-    n.date !== d0 && regs.length ? requireAdmin(`Đổi ngày đợt ${fd(d0)} → ${fd(n.date)} (${regs.length} đăng ký)`, apply) : apply();
+    if (limCh && n.limit && n.limit < capOf(d0).n) return again(`Đợt đang có ${capOf(d0).n} người thi lại, giới hạn không được nhỏ hơn số này.`);
+    n.date !== d0 && regs.length ? requireAdmin(`Đổi ngày đợt ${fd(d0)} → ${fd(n.date)} (${regs.length} đăng ký)`, apply) : limCh ? requireAdmin(`Đổi giới hạn số người đợt ${fd(d0)}`, apply) : apply();
   }, 'Lưu');
   setTimeout(() => { const e = $('#edName'); if (e) e.focus(); }, 50);
 }
@@ -1140,6 +1153,7 @@ function blExplain(ev, examDate){
   }).join('<br>');
 }
 function makeRetake(id, regDate, examDate, note, phone, addr){
+  makeRetake.full = false; if (capOf(examDate).full) { makeRetake.full = true; return null; }
   const ev = evalFor(id, examDate), p = H.people.get(id);
   if (!ev || ev.status === 'DAT') return null;
   const f = C.fee(ev, S.cfg, regDate);
@@ -1165,6 +1179,7 @@ window.openRetake = id => {
     () => {
       if (activeReg(id)) return toast('Người này vừa được đăng ký ở nơi khác');
       if (!$('#dExam').value) return toast('Chưa chọn đợt thi');
+      if (capBlock($('#dExam').value, 1)) return;
       const evx = evalFor(id, $('#dExam').value);
       const paid0 = toNum($('#dPaid').value), mt = paid0 ? readMethod('d') : { method: 'TM' }; if (!mt) return;
       if (evx.uncertain && evx.uncertain.length && !$('#dUnc').checked) return blockMsg('Chưa xác nhận hạn bảo lưu', '<p>Ngày đạt gốc của một phần không có trong dữ liệu. Đối chiếu hồ sơ gốc rồi tick ô xác nhận trước khi lưu.</p>');
@@ -1175,7 +1190,7 @@ window.openRetake = id => {
       if (paid) addPay({ regId: r.id, cccd: id, date: todayISO(), amount: paid, by: getBy(), note: 'Thu khi đăng ký', method: mt.method, txn: mt.txn });
       if (r.creditApplied) logA('Trừ tiền bảo lưu khi đăng ký', id, p.name, money(r.creditApplied));
       logA('Đăng ký thi lại', id, p.name, `${partsLbl(r)} · đợt ${fd(r.examDate)} · phải thu ${money(regTotals(r).due)}${paid ? ' · thu ngay ' + money(paid) : ''}`);
-      save(); renderAll(); showPerson(id); toast(paid ? 'Đã đăng ký và ghi thu ' + money(paid) : 'Đã đăng ký, chưa thu tiền');
+      save(); renderAll(); showPerson(id); toast(paid ? 'Đã đăng ký và ghi thu ' + money(paid) : 'Đã đăng ký, chưa thu tiền'); capNotice(r.examDate);
     }, 'Lưu đăng ký');
   const upd = () => {
     const ex = $('#dExam').value || defaultDot(), e2 = evalFor(id, ex);
@@ -1184,6 +1199,7 @@ window.openRetake = id => {
     $('#dFee').innerHTML = `<div class="alert ${e2.expired && e2.expired.length ? 'bad' : ''}" style="margin-bottom:8px"><b>Phải thi lại: ${ndLabel(e2.need)}</b> tại đợt ${fd(ex)}<br><span class="small">${blExplain(e2, ex)}</span></div>
       <div class="fee">${money(f.total)} đ</div><div class="small muted">${Object.entries(f.items).map(([k,v])=>ITEM[k]+' '+money(v)).join(' + ')} · ${esc(f.rule)}</div>${(() => { const cr = creditsOf(id).reduce((a, c) => a + Object.keys(c.items).filter(k => f.items[k]).reduce((x, k) => x + Math.min(creditLeft(c, k), f.items[k]), 0), 0); return cr ? `<div class="alert ok" style="margin-top:8px">Có tiền bảo lưu từ lần vắng thi: tự trừ <b>${money(cr)} đ</b> → còn phải nộp <b>${money(f.total - cr)} đ</b></div>` : ''; })()}`;
     $('#dUncL').hidden = !(e2.uncertain && e2.uncertain.length);
+    $('#dFee').insertAdjacentHTML('afterbegin', capLine(ex));
   };
   $('#dReg').oninput = upd; $('#dExam').onchange = upd; upd();
 };
@@ -1254,8 +1270,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.7.0', APP_DATE = '24/10/2026';
+const APP_VERSION = '3.8.0', APP_DATE = '24/10/2026';
 const CHANGELOG = [
+  ['3.8.0', '24/10/2026', ['Giới hạn số người thi lại cho từng đợt (tuỳ chọn): nhắc khi còn ít chỗ (mặc định 10), chặn nhập thêm khi đủ ở mọi đường nhập (quầy, đăng ký nhanh, chuyển Trượt/Vắng, đổi đợt, bỏ huỷ, khôi phục); để trống = không giới hạn', 'Dấu “!” giải thích chức năng: cạnh tiêu đề mỗi trang và cạnh các nút / mục chính', 'Sửa lỗi nút “Soạn tin nhắn” trùng mã với ô thông báo đăng ký nhanh']],
   ['3.7.0', '24/10/2026', ['Quầy tra cứu: khung bên phải hiện số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H, nạp mới, chưa nộp đủ, +N hôm nay), cập nhật ngay khi nhập; đợt vừa có người nộp tự lên đầu', 'Danh sách thi lại (mẫu chuẩn) và bảng chi tiết thêm cột “Vắng / có thi”: Có thi, Vắng LT, Vắng H, Vắng LT+H, Không thi H (trượt LT), Không có tên trong KQ — để tìm đúng biên bản thi']],
   ['3.6.1', '21/10/2026', ['Sửa quy định bảo lưu: lệ phí Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026); đạt LT mà vắng Hình thì không. Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt (vắng hay trượt). Khoản tạo theo quy định cũ tự tính lại', 'Tiền đã bàn giao ở đợt trước không tính lại: đăng ký mới, phiếu thu, sổ thu, tổng kết và biên bản chỉ tính phần học viên đóng thêm; phần trừ bảo lưu ghi riêng', 'Biên bản đợt cũ ghi rõ số tiền được bảo lưu sang đợt sau']],
   ['3.6.0', '21/10/2026', ['Mã QR VietQR tự tạo dạng vector (in luôn sắc nét) theo tài khoản VietinBank 107882633015; mỗi học viên có QR riêng ghi sẵn đúng số tiền còn nợ và nội dung “A1 CCCD ngày-tháng đợt”', 'Vắng thi: tự bảo lưu lệ phí Hình và thẻ GPLX đã nộp (LT 60k và phí duyệt 50k không hoàn), tự trừ khi đăng ký đợt sau; hoàn tiền / huỷ bảo lưu; khoản tiền của người không có tên trong kết quả', 'Một nút chuyển toàn bộ người Trượt / Vắng của đợt cũ sang đợt mới, xem trước phần thi và lệ phí', 'Đối chiếu sao kê ngân hàng: nạp file, tự ghép CCCD, ghi thu hàng loạt không trùng; file sao kê mẫu', 'Giấy hẹn sát hạch (2 tờ / A4) có QR nộp tiền; giờ và địa điểm từng đợt', 'Tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi), ghi lịch sử liên hệ', 'Biên bản bàn giao lệ phí có số tiền bằng chữ', 'Tóm tắt Đạt / Trượt / Vắng ngay sau khi nạp kết quả']],
@@ -1341,6 +1358,7 @@ window.editReg = id => {
         const other = activeReg(r.cccd, r.id);
         if (other) return blockMsg('Không thể chuyển đợt', `<p>${esc(r.name)} còn nằm trong <b>${esc(regWhere(other))}</b>.</p>`);
         if (dotDone(v.examDate)) return blockMsg('Không thể chuyển đợt', `<p>Đợt ${fd(v.examDate)} đã có kết quả sát hạch.</p>`);
+        if (r.kind === 'lai' && !r.cancelled && capBlock(v.examDate, 1)) return;
         return dialog(`<h2>Chuyển đợt thi?</h2><p><b>${esc(r.name)}</b><br>từ đợt <b>${esc(dotLabel(r.examDate))}</b><br>sang đợt <b>${esc(dotLabel(v.examDate))}</b></p>`, apply, 'Chuyển đợt');
       }
       apply();
@@ -1377,7 +1395,7 @@ window.delPay = id => {
 window.restoreTrash = id => {
   const t = S.trash.find(x=>x.id===id); if (!t) return;
   if (t.type === 'rut') { S.withdrawals.push(t.rut); }
-  else if (t.type === 'reg') { S.regs.push(t.reg); S.pays.push(...t.pays); }
+  else if (t.type === 'reg') { if (t.reg.kind === 'lai' && !t.reg.cancelled && capBlock(t.reg.examDate, 1)) return; S.regs.push(t.reg); S.pays.push(...t.pays); }
   else { if (!S.regs.some(r=>r.id===t.pay.regId)) return toast('Đăng ký gốc của khoản thu này đã bị xoá; khôi phục đăng ký trước'); S.pays.push(t.pay); }
   logA('Khôi phục từ thùng rác', (t.reg||t.pay||t.rut||{}).cccd, (t.reg||t.rut||{}).name, t.type); S.trash = S.trash.filter(x=>x.id!==id); refresh(); toast('Đã khôi phục');
 };
@@ -1432,11 +1450,11 @@ function renderTL(){
   $('#nTl').hidden = !owe; $('#nTl').textContent = owe; $('#nTl').title = owe + ' người chưa nộp đủ';
 }
 function updTlSel(){
-  const n = tlSel.size; ['tlBulkPay','tlBulkDot','tlBulkDel','tlBulkHen','tlBulkMsg'].forEach(i=>$('#'+i).disabled = !n);
+  const n = tlSel.size; ['tlBulkPay','tlBulkDot','tlBulkDel','tlBulkHen','tlBulkSms'].forEach(i=>$('#'+i).disabled = !n);
   $('#tlSelInfo').textContent = n ? `Đã chọn ${n} người` : 'Tick ô đầu dòng để thao tác nhiều người cùng lúc.';
   const all = $('#tlAll'); if (all) all.checked = n && n === tlRows.length;
 }
-window.uncancel = id => { const r = S.regs.find(x=>x.id===id); delete r.cancelled; logA('Bỏ hủy đăng ký', r.cccd, r.name, `đợt ${fd(r.examDate)}`); refresh(r.cccd); };
+window.uncancel = id => { const r = S.regs.find(x=>x.id===id); if (r.kind === 'lai' && capBlock(r.examDate, 1)) return; delete r.cancelled; logA('Bỏ hủy đăng ký', r.cccd, r.name, `đợt ${fd(r.examDate)}`); refresh(r.cccd); };
 $('#tlTable').addEventListener('change', e => {
   if (e.target.id === 'tlAll') { tlSel = e.target.checked ? new Set(tlRows.map(x=>x.r.id)) : new Set(); renderTL(); return; }
   if (e.target.classList.contains('tlChk')) { e.target.checked ? tlSel.add(e.target.dataset.id) : tlSel.delete(e.target.dataset.id); updTlSel(); }
@@ -1460,6 +1478,7 @@ $('#tlBulkDot').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=
   dialog(`<h2>Chuyển ${list.length} người sang đợt khác</h2><p class="small">Đang ở: ${esc(from)}</p><label class="f">Đợt thi mới${dotSelect('bdDate', defaultDot())}</label>`, () => {
     const d = $('#bdDate').value; if (!d) return toast('Chưa chọn đợt');
     if (dotDone(d)) return blockMsg('Không thể chuyển', `<p>Đợt ${fd(d)} đã có kết quả sát hạch.</p>`);
+    if (capBlock(d, list.filter(r => r.examDate !== d && !r.cancelled && r.kind === 'lai').length)) return;
     logA('Đổi đợt hàng loạt', '', '', `${list.length} người → đợt ${fd(d)}`); for (const r of list) r.examDate = d; tlSel.clear(); refresh(); const bad = list.filter(r => regIssues(r).length); toast(`Đã chuyển ${list.length} người sang đợt ${fd(d)}` + (bad.length ? ` · ${bad.length} người cần tính lại phần thi/lệ phí` : '')); }, 'Chuyển đợt'); };
 $('#tlBulkDel').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=>r.id===id)).filter(Boolean);
   dialog(`<h2>Xoá ${list.length} đăng ký?</h2><p>Xoá kèm các khoản thu của họ. Khôi phục được trong Thùng rác.</p>`, () => {
@@ -1478,11 +1497,12 @@ $('#tlBulkGo').onclick = () => {
     { const w = withdrawnOf(id); if (w) { skip.push(`${id} ${ev.name}: đã rút hồ sơ ngày ${fd(w.date)}`); continue; } }
     const cur = activeReg(id); if (cur) { skip.push(`${id} ${ev.name}: đang nằm trong ${regWhere(cur)}`); continue; }
     { const e2 = evalFor(id, $('#tlBulkExam').value); if (e2.uncertain && e2.uncertain.length) { skip.push(`${id} ${ev.name}: không rõ ngày đạt gốc phần ${e2.uncertain.join(', ')} → đăng ký từng người ở Quầy để đối chiếu`); continue; } }
-    const r = makeRetake(id, $('#tlBulkReg').value, $('#tlBulkExam').value, '', phone); if (!r) { skip.push(`${id} ${ev.name}: không cần thi lại tại đợt này`); continue; } ok++; sum += regTotals(r).due;
+    const r = makeRetake(id, $('#tlBulkReg').value, $('#tlBulkExam').value, '', phone); if (!r) { skip.push(`${id} ${ev.name}: ${makeRetake.full ? 'đợt đã đủ số lượng giới hạn' : 'không cần thi lại tại đợt này'}`); continue; } ok++; sum += regTotals(r).due;
   }
   if (ok) { logA('Đăng ký theo danh sách', '', '', `${ok} người · đợt ${fd($('#tlBulkExam').value)} · phải thu ${money(sum)}`); save(); } renderAll();
   $('#tlBulkMsg').innerHTML = `<div class="alert ${skip.length?'':'ok'}">Đã đăng ký ${ok} người, tổng phải thu ${money(sum)} đ (chưa thu).${skip.length?`<br>Bỏ qua ${skip.length}:<br>`+skip.slice(0,30).map(esc).join('<br>'):''}</div>`;
   if (ok) $('#tlBulk').value = '';
+  if (ok) capNotice($('#tlBulkExam').value); else if (capOf($('#tlBulkExam').value).full) capBlock($('#tlBulkExam').value, 1);
 };
 $('#tlExportForm').onclick = () => exportTLForm();
 $('#tlExport').onclick = () => {
