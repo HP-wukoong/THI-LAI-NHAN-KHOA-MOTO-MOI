@@ -97,6 +97,12 @@ tr.click{cursor:pointer}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
 .hint{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:50%;border:0;padding:0;margin:0 0 0 5px;vertical-align:middle;background:var(--warn);color:#1a1a1a;font:800 11.5px/1 var(--font);cursor:help;flex:none;opacity:.85}
 .hint:hover,.hint:focus-visible{opacity:1;outline:2px solid var(--brand);outline-offset:1px}
+ #bgLayer{display:none}
+html.hasbg body{background:transparent}
+html.hasbg #bgLayer{display:block;position:fixed;inset:0;z-index:-1;background:var(--bg) center/cover no-repeat;transform:translateZ(0);will-change:transform;contain:strict;pointer-events:none}
+html.hasbg #bgLayer i{position:absolute;inset:0;background:var(--bg)}
+html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 88%,transparent)}
+@media print{#bgLayer{display:none!important}}
 .hw{display:inline-flex;align-items:center;gap:0;flex:none}
 #pgTitle{display:inline-block}
 .hint-pg{width:20px;height:20px;font-size:13px;margin-left:8px;vertical-align:4px}
@@ -251,7 +257,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
   <div class="tb-right">
     <button class="savechip" id="saveChip" onclick="switchTab('data')"></button>
     <button class="lockchip" id="lockChip" hidden></button>
-    <span class="vbtns"><button id="vBig" title="Chữ to">A+</button><button id="vHc" title="Tương phản cao">Tương phản</button></span>
+    <span class="vbtns"><button id="vBig" title="Chữ to">A+</button><button id="vHc" title="Tương phản cao">Tương phản</button><button id="vBg" title="Đặt ảnh nền cho tool" onclick="bgDlg()">Ảnh nền</button></span>
     <label><input type="checkbox" id="maskToggle"> Che CCCD</label>
     <button class="uchip" id="userChip" title="Đổi người đang trực"><i id="userAv">?</i><span id="userName">Chưa đặt tên</span></button>
   </div>
@@ -729,7 +735,7 @@ const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${Stri
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fold = s => C.norm(s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/gi, 'd').toLowerCase();
 const toNum = v => +String(v || '').replace(/[^\d-]/g, '') || 0;
-function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove('on'),2600); }
+function toast(m, ms){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toast.h); toast.h=setTimeout(()=>t.classList.remove('on'),ms||2600); }
 
 /* ---------------- STATE ---------------- */
 const LS = 'soSatHachA1.v1';
@@ -1270,8 +1276,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.8.0', APP_DATE = '24/10/2026';
+const APP_VERSION = '3.9.0', APP_DATE = '25/10/2026';
 const CHANGELOG = [
+  ['3.9.0', '25/10/2026', ['Ảnh nền cho tool (nút “Ảnh nền” trên thanh trên cùng): chỉnh độ phủ màu, làm mờ, khung trong suốt nhẹ, phủ kín / vừa khung; lưu riêng từng máy', 'Chống giật: ảnh tự thu nhỏ ≤1920px và nén, làm mờ và phủ màu tính sẵn một lần, lớp nền cố định riêng; máy yếu tự tắt khung trong suốt', 'Tăng tốc: mỗi thao tác (thu tiền, đăng ký…) trước đây vẽ lại cả danh sách 27.000 người mất ~1 giây, nay chỉ ~60 ms; danh sách bảo lưu chỉ vẽ khi mở tab đó và sắp xếp 1 lần']],
   ['3.8.0', '24/10/2026', ['Giới hạn số người thi lại cho từng đợt (tuỳ chọn): nhắc khi còn ít chỗ (mặc định 10), chặn nhập thêm khi đủ ở mọi đường nhập (quầy, đăng ký nhanh, chuyển Trượt/Vắng, đổi đợt, bỏ huỷ, khôi phục); để trống = không giới hạn', 'Dấu “!” giải thích chức năng: cạnh tiêu đề mỗi trang và cạnh các nút / mục chính', 'Sửa lỗi nút “Soạn tin nhắn” trùng mã với ô thông báo đăng ký nhanh']],
   ['3.7.0', '24/10/2026', ['Quầy tra cứu: khung bên phải hiện số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H, nạp mới, chưa nộp đủ, +N hôm nay), cập nhật ngay khi nhập; đợt vừa có người nộp tự lên đầu', 'Danh sách thi lại (mẫu chuẩn) và bảng chi tiết thêm cột “Vắng / có thi”: Có thi, Vắng LT, Vắng H, Vắng LT+H, Không thi H (trượt LT), Không có tên trong KQ — để tìm đúng biên bản thi']],
   ['3.6.1', '21/10/2026', ['Sửa quy định bảo lưu: lệ phí Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026); đạt LT mà vắng Hình thì không. Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt (vắng hay trượt). Khoản tạo theo quy định cũ tự tính lại', 'Tiền đã bàn giao ở đợt trước không tính lại: đăng ký mới, phiếu thu, sổ thu, tổng kết và biên bản chỉ tính phần học viên đóng thêm; phần trừ bảo lưu ghi riêng', 'Biên bản đợt cũ ghi rõ số tiền được bảo lưu sang đợt sau']],
@@ -1805,7 +1812,7 @@ function switchTab(t){
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   $('#pgTitle').textContent = PAGES[t][0]; $('#pgSub').textContent = PAGES[t][1];
   try { localStorage.setItem('soA1.tab', t); } catch(e){}
-  if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); renderBkManager(); }
+  if (t === 'ds') renderDs(); if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); renderBkManager(); }
 }
 const curUser = () => getBy();
 function renderUser(){ const n = curUser(); $('#userName').textContent = (n || 'Chưa đặt tên người trực') + (typeof SESSION !== 'undefined' && SESSION.user ? ' · ' + ROLES[SESSION.user.role] : ''); $('#userAv').textContent = n ? n.trim().split(/\s+/).pop()[0].toUpperCase() : '?'; }
@@ -2293,15 +2300,21 @@ const FILTERS = [
   ['VANG','Vắng, chưa dự thi', e=>e.status==='VANG'], ['reg','Đã ĐK thi lại', e=>e.status!=='DAT'&&!!activeRetake(e.id)],
   ['noreg','Chưa ĐK thi lại', e=>e.status!=='DAT'&&!activeRetake(e.id)&&!withdrawnOf(e.id)], ['rut','Đã rút hồ sơ', e=>!!withdrawnOf(e.id)], ['flag','Cần đối chiếu', e=>e.flags.length>0]
 ];
+/* Danh sách 27.000+ người: sắp xếp 1 lần, lọc lại không phải sắp xếp (tránh khựng ~1 giây mỗi lần thao tác) */
+let dsSortCache = { ev: null, key: '', list: [] };
+function dsSortedAll(){
+  const key = S.cfg.examDate + '|' + H.ev.size; if (dsSortCache.ev === H.ev && dsSortCache.key === key) return dsSortCache.list;
+  const ord = { HETBL:0, THILAI:1, VANG:2, DAT:3 }, list = [...H.ev.values()];
+  list.sort((a,b)=> (ord[a.status]-ord[b.status]) || C.viNameCmp(a.name, b.name) || a.id.localeCompare(b.id));
+  dsSortCache = { ev: H.ev, key, list }; return list;
+}
 function renderDs(){
-  const all = [...H.ev.values()];
+  const all = dsSortedAll();
   $('#dsChips').innerHTML = FILTERS.map(([k,l,fn])=>`<button class="chip ${dsFilter===k?'on':''}" data-f="${k}">${l}<span class="c">${all.filter(fn).length.toLocaleString('vi-VN')}</span></button>`).join('');
   const fn = FILTERS.find(f=>f[0]===dsFilter)[2];
   const q = fold($('#dsSearch').value), qd = $('#dsSearch').value.replace(/\D/g,''), from = $('#dsFrom').value, to = $('#dsTo').value, need = $('#dsNeed').value;
   dsRows = all.filter(e => fn(e) && (!from || e.lastDate >= from) && (!to || e.lastDate <= to) && (!need || e.needLabel === need)
     && (!q || (qd.length>=3 ? e.id.includes(qd) : fold(e.name).includes(q))));
-  const ord = { HETBL:0, THILAI:1, VANG:2, DAT:3 };
-  dsRows.sort((a,b)=> (ord[a.status]-ord[b.status]) || C.viNameCmp(a.name, b.name) || a.id.localeCompare(b.id));
   $('#dsInfo').textContent = `${dsRows.length.toLocaleString('vi-VN')} người · tính hạn bảo lưu đến ngày sát hạch ${fd(S.cfg.examDate)}`;
   const per = 200, pages = Math.max(1, Math.ceil(dsRows.length/per)); dsPage = Math.min(dsPage, pages-1);
   const slice = dsRows.slice(dsPage*per, dsPage*per+per);
@@ -2398,7 +2411,7 @@ function renderHeader(){
   const w = [...H.ev.values()].filter(e=>e.status==='HETBL'||(e.status!=='DAT'&&e.soon&&e.soon.length)).length;
   $('#nWarn').hidden = !w; $('#nWarn').textContent = w;
 }
-function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderDs(); renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip(); renderQSide(); creditRecalc(); renderCredits(); renderBankPanel();
+function renderAll(){ fillDotSelects(); renderDots(); renderHeader(); renderUser(); renderSec(); { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-mtl') renderMtl(); if (t === 't-dsoat') renderDsoat(); if (t === 't-log') renderLog(); if (t === 't-tk') renderTk(); } renderTL(); renderTrash(); renderRut(); if ((document.querySelector('section.tab.on')||{}).id === 't-ds') renderDs(); { const n = (S.withdrawals||[]).filter(w=>!w.reinstated && w.date.slice(0,7)===todayISO().slice(0,7)).length; $('#nRut').hidden = !n; $('#nRut').textContent = n; $('#nRut').title = n + ' người rút trong tháng'; } renderMoi(); renderThu(); renderDot(); renderData(); newFeePreview(); renderKhoa(); renderStoragePanel(); renderUsers(); renderSaveChip(); renderQSide(); creditRecalc(); renderCredits(); renderBankPanel();
   { const t = (document.querySelector('section.tab.on')||{}).id; if (t === 't-home') renderHome(); if (t === 't-quy') renderQuy(); if (t === 't-bc') renderBc(); }
   { const un = unclosedDays().filter(u => u.date < todayISO()).length; $('#nQuy').hidden = !un; $('#nQuy').textContent = un; $('#nQuy').title = un + ' ca ngày trước chưa chốt'; }
   $('#qList').innerHTML = ''; }
@@ -2514,6 +2527,7 @@ for (const [id, label, ev] of [['tlBulkDel','Xoá nhiều đăng ký','onclick']
   switchTab('home');
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
   await IDB.open();
+  bgBoot();
   const st = await IDB.get('state');
   if (st && (!S.savedAt || (st.savedAt || '') >= S.savedAt)) adoptState(st);
   const h = await IDB.get('hist');

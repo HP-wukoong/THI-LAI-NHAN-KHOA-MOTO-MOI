@@ -568,3 +568,87 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { const pop = $('#hintPop'); if (pop) pop.hidden = true; } });
 addEventListener('scroll', () => { const pop = $('#hintPop'); if (pop) pop.hidden = true; }, true);
 installHints(); window.hintMissing = () => HINTS.filter(([sel]) => !hintFind(sel)).map(x => x[0]);
+
+/* ---------------- ẢNH NỀN ----------------
+   Lưu riêng từng máy (IndexedDB), không nằm trong file dữ liệu sổ thu nên không làm nặng sao lưu / đồng bộ.
+   Chống giật: ảnh thu nhỏ ≤ 1920px + nén JPEG; làm mờ tính sẵn 1 lần bằng canvas (không dùng CSS blur / backdrop-filter);
+   lớp nền cố định riêng (GPU layer) nên cuộn trang không phải vẽ lại; dùng blob URL thay vì chuỗi base64 trong CSS. */
+const BG_DEF = { shade: 78, blur: 0, glass: false, fit: 'cover' };
+let BG = { url: '', base: null, view: null, opt: Object.assign({}, BG_DEF), baked: '' };
+const bgColor = () => getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() || '#f2f4f7';
+function bgLayer(){ let el = $('#bgLayer'); if (!el) { el = document.createElement('div'); el.id = 'bgLayer'; el.setAttribute('aria-hidden', 'true'); el.innerHTML = '<i></i>'; document.body.prepend(el); } return el; }
+function bgApply(live){
+  const on = !!BG.url, h = document.documentElement, el = bgLayer();
+  h.classList.toggle('hasbg', on); h.classList.toggle('bgglass', on && !!BG.opt.glass);
+  el.style.backgroundImage = on ? `url("${BG.url}")` : ''; el.style.backgroundSize = BG.opt.fit === 'contain' ? 'contain' : 'cover';
+  /* bình thường lớp phủ màu đã "nướng" sẵn vào ảnh → chỉ 1 lớp ảnh, cuộn nhẹ; lúc kéo thanh chỉnh thì dùng lớp phủ tạm để xem trước */
+  el.firstChild.style.opacity = live ? String(BG.opt.shade / 100) : '0';
+}
+async function bgRender(){
+  /* Tạo ảnh hiển thị 1 lần: làm mờ + phủ màu nền ngay trong ảnh (không tốn công khi cuộn) */
+  if (!BG.base) return null; const o = BG.opt, col = bgColor();
+  const bmp = await createImageBitmap(BG.base), cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+  const g = cv.getContext('2d'), pad = o.blur * 2;
+  if (o.blur) { g.filter = `blur(${o.blur}px)`; g.drawImage(bmp, -pad, -pad, bmp.width + pad * 2, bmp.height + pad * 2); g.filter = 'none'; } else g.drawImage(bmp, 0, 0);
+  bmp.close && bmp.close();
+  if (o.shade) { g.globalAlpha = o.shade / 100; g.fillStyle = col; g.fillRect(0, 0, cv.width, cv.height); g.globalAlpha = 1; }
+  BG.baked = col + '|' + o.shade + '|' + o.blur;
+  return await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.85));
+}
+async function bgShrink(file){
+  const bmp = await createImageBitmap(file), max = 1920, sc = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const cv = document.createElement('canvas'); cv.width = Math.round(bmp.width * sc); cv.height = Math.round(bmp.height * sc);
+  const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(bmp, 0, 0, cv.width, cv.height); bmp.close && bmp.close();
+  const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', 0.85)); return { blob, w: cv.width, h: cv.height };
+}
+async function bgSetView(blob, live){
+  const old = BG.url; BG.view = blob; BG.url = blob ? URL.createObjectURL(blob) : '';
+  if (blob) { const im = new Image(); im.src = BG.url; try { await im.decode(); } catch(e){} } /* giải mã trước khi gắn → không khựng khi hiện */
+  bgApply(live); if (old) setTimeout(() => URL.revokeObjectURL(old), 1000);
+}
+let bgT = null;
+function bgRebake(delay){ clearTimeout(bgT); bgT = setTimeout(async () => { if (BG.base) await bgSetView(await bgRender()); }, delay || 0); }
+async function bgSave(){ await IDB.put('bg', BG.base ? { base: BG.base, view: BG.view, baked: BG.baked, opt: BG.opt } : null); }
+async function bgBoot(){ try { const d = await IDB.get('bg'); if (!d || !d.base) return; BG.base = d.base; BG.opt = Object.assign({}, BG_DEF, d.opt || {});
+    const key = bgColor() + '|' + BG.opt.shade + '|' + BG.opt.blur;
+    if (d.view && d.baked === key) { BG.baked = key; await bgSetView(d.view); } else await bgSetView(await bgRender()); } catch(e){ console.warn('bg', e); } }
+/* Đổi giao diện (tương phản cao, sáng / tối) → phủ lại đúng màu nền */
+new MutationObserver(() => { if (BG.base && BG.baked.split('|')[0] !== bgColor()) bgRebake(150); }).observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => BG.base && bgRebake(150)); } catch(e){}
+window.bgDlg = () => {
+  const o = BG.opt; let committed = false;
+  dialog(`<h2>Ảnh nền</h2><p class="small muted">Ảnh chỉ lưu trên máy này (không vào file dữ liệu). Tool tự thu nhỏ và nén ảnh để chạy mượt.</p>
+    <div class="row"><label class="b p" style="cursor:pointer">Chọn ảnh…<input type="file" id="bgFile" accept="image/*" hidden></label><button type="button" class="b" id="bgDel"${BG.base ? '' : ' disabled'}>Bỏ ảnh nền</button><span class="small muted" id="bgInfo">${BG.base ? `Ảnh hiện tại ${Math.round(BG.base.size / 1024)} KB` : 'Chưa có ảnh nền'}</span></div>
+    <div class="row" style="margin-top:10px"><label class="f" style="flex:1">Độ phủ màu nền (dễ đọc chữ): <b id="bgShV">${o.shade}%</b><input type="range" id="bgSh" min="0" max="95" step="1" value="${o.shade}"></label>
+      <label class="f" style="flex:1">Làm mờ ảnh: <b id="bgBlV">${o.blur}px</b><input type="range" id="bgBl" min="0" max="16" step="1" value="${o.blur}"></label></div>
+    <div class="row" style="margin-top:6px"><label class="chip"><input type="checkbox" id="bgGl"${o.glass ? ' checked' : ''}> Khung trong suốt nhẹ (thấy ảnh sau khung)</label>
+      <label class="f">Cách hiển thị<select id="bgFit"><option value="cover"${o.fit !== 'contain' ? ' selected' : ''}>Phủ kín màn hình</option><option value="contain"${o.fit === 'contain' ? ' selected' : ''}>Vừa khung (không cắt ảnh)</option></select></label></div>
+    <p class="small muted">Gợi ý: độ phủ 70–85% để chữ luôn rõ. Thay đổi xem trước ngay; bấm Lưu để giữ.</p>`, async () => { committed = true; clearTimeout(bgT); if (BG.base) await bgSetView(await bgRender()); await bgSave(); logA('Đổi ảnh nền', '', '', BG.base ? `${Math.round(BG.base.size / 1024)} KB · phủ ${BG.opt.shade}% · mờ ${BG.opt.blur}px` : 'bỏ ảnh nền'); toast('Đã lưu ảnh nền'); }, 'Lưu');
+  const d = $('#dlg');
+  $('#bgFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; if (!/^image\//.test(f.type)) return toast('Không phải file ảnh');
+    $('#bgInfo').textContent = 'Đang xử lý…'; const t0 = performance.now();
+    try { const s = await bgShrink(f); BG.base = s.blob; await bgSetView(await bgRender()); $('#bgInfo').textContent = `${s.w}×${s.h}px · ${Math.round(s.blob.size / 1024)} KB (gốc ${Math.round(f.size / 1024)} KB) · xử lý ${Math.round(performance.now() - t0)} ms`; $('#bgDel').disabled = false; }
+    catch(err){ $('#bgInfo').textContent = 'Không đọc được ảnh này'; } };
+  $('#bgDel').onclick = async () => { BG.base = null; await bgSetView(null); $('#bgInfo').textContent = 'Đã bỏ ảnh nền (bấm Lưu)'; $('#bgDel').disabled = true; };
+  $('#bgSh').oninput = e => { BG.opt.shade = +e.target.value; $('#bgShV').textContent = BG.opt.shade + '%'; bgRebake(120); };
+  $('#bgBl').oninput = e => { BG.opt.blur = +e.target.value; $('#bgBlV').textContent = BG.opt.blur + 'px'; bgRebake(200); };
+  $('#bgGl').onchange = e => { BG.opt.glass = e.target.checked; bgApply(); };
+  $('#bgFit').onchange = e => { BG.opt.fit = e.target.value; bgApply(); };
+  d.addEventListener('close', function once(){ d.removeEventListener('close', once);
+    if (committed) return;
+    IDB.get('bg').then(async saved => {
+      /* chưa bấm Lưu → quay về bản đã lưu */ clearTimeout(bgT); if (!saved || !saved.base) { BG.base = null; await bgSetView(null); } else { BG.base = saved.base; BG.opt = Object.assign({}, BG_DEF, saved.opt); await bgSetView(await bgRender()); } }); });
+};
+/* Theo dõi độ mượt khi cuộn có ảnh nền: máy yếu (dưới ~30 khung hình/giây) thì tự tắt "khung trong suốt" rồi đo lại; vẫn chậm thì nhắc bỏ ảnh nền */
+let bgWatch = { frames: [], on: false, last: 0, done: false };
+addEventListener('scroll', () => {
+  if (!BG.url || bgWatch.done || bgWatch.on) return; bgWatch.on = true; bgWatch.last = performance.now();
+  const tick = now => { bgWatch.frames.push(now - bgWatch.last); bgWatch.last = now;
+    if (bgWatch.frames.length < 90) return requestAnimationFrame(tick);
+    bgWatch.on = false; const f = bgWatch.frames.slice(5).sort((a, b) => a - b), med = f[Math.floor(f.length / 2)]; bgWatch.frames = [];
+    if (med <= 34) { bgWatch.done = true; return; }
+    if (BG.opt.glass) { BG.opt.glass = false; bgApply(); bgSave(); toast('Máy hơi chậm khi cuộn: đã tắt “khung trong suốt” của ảnh nền cho mượt hơn'); logA('Ảnh nền: tự tắt khung trong suốt', '', '', `khung hình ~${Math.round(med)} ms`); return; }
+    bgWatch.done = true; toast('Máy này cuộn hơi chậm khi có ảnh nền. Nếu thấy giật, bấm “Ảnh nền” → Bỏ ảnh nền.', 6000);
+  };
+  requestAnimationFrame(tick);
+}, { passive: true });
