@@ -311,6 +311,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <label class="f">Thanh toán<select id="tlPay"><option value="">Tất cả</option><option value="owe">Chưa nộp đủ</option><option value="due">Chưa nộp đồng nào</option><option value="part">Nộp một phần</option><option value="paid">Đã nộp đủ</option><option value="cxl">Đã hủy</option></select></label>
       <label class="f">Phần thi<select id="tlNeed"><option value="">Tất cả</option><option>LT</option><option>H</option><option>LT+H</option></select></label>
       <label class="f">Kết quả đợt<select id="tlKq"><option value="">Tất cả</option><option value="wait">Chưa có kết quả</option><option value="D">Đạt</option><option value="T">Trượt</option><option value="V">Vắng</option><option value="none">Không có tên trong KQ</option></select></label>
+      <label class="f">SĐT / người nhận<select id="tlPhone"><option value="">Tất cả</option></select></label>
       <label class="f" style="flex:1;min-width:160px">Tìm<input id="tlSearch" placeholder="CCCD / tên / SĐT"></label>
       <button class="b p" id="tlExportForm">Xuất DS thi lại (mẫu chuẩn)</button><button class="b" id="tlExport">Xuất bảng chi tiết</button>
     </div>
@@ -1295,8 +1296,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.3', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.9.4', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.9.4', '09/11/2026', ['Đăng ký thi lại: thêm bộ lọc “SĐT / người nhận”: số trùng nhau, ghi tên người nhận thay số (từng tên kèm số người), có số, để trống; bấm vào SĐT trong bảng để lọc nhanh những người cùng số / cùng người nhận']],
   ['3.9.3', '09/11/2026', ['Đăng ký thi lại: phần số liệu + bộ lọc + tiêu đề bảng đứng yên khi kéo danh sách (bảng cuộn trong khung vừa màn hình)', 'Thanh trượt ngang luôn ở cuối màn hình, nút ‹ › hai bên để xem cột bị ẩn, Shift + cuộn chuột; cột chọn, STT, họ tên cố định bên trái']],
   ['3.9.2', '09/11/2026', ['Cột 14 DS thi lại: chỉ xét học viên có vắng hay không tại đúng ngày “Thời gian trượt” (cột 8): ghi Vắng LT / Vắng H / Vắng LT+H, có thi thì để trống']],
   ['3.9.1', '09/11/2026', ['Sửa cột “Vắng thi gần nhất” trong DS thi lại (trước để trống khi đợt chưa thi): nay ghi ngày và phần học viên vắng gần nhất trong lịch sử, kèm ghi chú nếu đợt sau đó có thi; đợt đã có kết quả thì ghi kết quả của chính đợt đó']],
@@ -1454,11 +1456,24 @@ function renderTL(){
   $('#tlDot').innerHTML = `<option value="*">Tất cả đợt</option>` + dots.map(d=>`<option value="${d}">${d?fd(d):'(chưa chọn đợt)'}</option>`).join('');
   $('#tlDot').value = dots.includes(cur) || cur === '*' ? cur : (dots.includes(S.cfg.examDate) ? S.cfg.examDate : '*');
   const dot = $('#tlDot').value, pay = $('#tlPay').value, need = $('#tlNeed').value, kq = $('#tlKq').value, q = fold($('#tlSearch').value), qd = $('#tlSearch').value.replace(/\D/g,'');
+  /* Lọc cột SĐT: số trùng, ghi tên người nhận thay số (KIỆT, VUI, 3 TƯỜNG…), trống. Danh sách chọn tính theo đợt đang xem */
+  const inDot = regs.filter(r => (dot === '*' || (r.examDate || '') === dot) && (pay === 'cxl' ? r.cancelled : !r.cancelled));
+  const pc = {}; inDot.forEach(r => { const k = phoneKey(r.phone); if (k) (pc[k] = pc[k] || { n: 0, show: C.norm(r.phone) }).n++; });
+  const dupN = inDot.filter(r => { const k = phoneKey(r.phone); return k && k[0] === '#' && pc[k].n > 1; }).length, nameN = inDot.filter(r => (phoneKey(r.phone) || '')[0] === '@').length;
+  const phN = inDot.filter(r => (phoneKey(r.phone) || '')[0] === '#').length, emN = inDot.filter(r => !phoneKey(r.phone)).length, curPh = $('#tlPhone').value;
+  const names = Object.entries(pc).filter(([k]) => k[0] === '@').sort((a, b) => b[1].n - a[1].n || a[1].show.localeCompare(b[1].show, 'vi'));
+  const dups = Object.entries(pc).filter(([k, v]) => k[0] === '#' && v.n > 1).sort((a, b) => b[1].n - a[1].n);
+  $('#tlPhone').innerHTML = `<option value="">Tất cả</option><option value="~dup">Số điện thoại trùng nhau (${dupN})</option><option value="~name">Ghi tên người nhận, không phải số (${nameN})</option><option value="~phone">Có số điện thoại (${phN})</option><option value="~empty">Để trống (${emN})</option>`
+    + (names.length ? `<optgroup label="Theo người nhận">${names.map(([k, v]) => `<option value="${esc(k)}">${esc(v.show)} (${v.n})</option>`).join('')}</optgroup>` : '')
+    + (dups.length ? `<optgroup label="Số trùng">${dups.map(([k, v]) => `<option value="${esc(k)}">${esc(v.show)} (${v.n})</option>`).join('')}</optgroup>` : '');
+  $('#tlPhone').value = [...$('#tlPhone').options].some(o => o.value === curPh) ? curPh : '';
+  const ph = $('#tlPhone').value, phOk = r => { if (!ph) return true; const k = phoneKey(r.phone);
+    if (ph === '~dup') return !!k && k[0] === '#' && pc[k] && pc[k].n > 1; if (ph === '~name') return !!k && k[0] === '@'; if (ph === '~phone') return !!k && k[0] === '#'; if (ph === '~empty') return !k; return k === ph; };
   tlRows = regs.map(r=>({ r, t: regTotals(r), o: examOutcome(r), ev: H.ev.get(r.cccd), is: regIssues(r) })).filter(({r,t,o,is}) => (!tlOnlyIssues || is.length) &&
-    (dot==='*'||(r.examDate||'')===dot) && (!need||r.parts.join('+')===need) && (!kq||o.k===kq)
+    (dot==='*'||(r.examDate||'')===dot) && (!need||r.parts.join('+')===need) && (!kq||o.k===kq) && phOk(r)
     && (pay==='cxl' ? !!r.cancelled : (!r.cancelled && (!pay || (pay==='owe' ? t.left>0 : t.st===pay))))
     && (!q || (qd.length>=3 ? (r.cccd.includes(qd) || (r.phone||'').replace(/\D/g,'').includes(qd)) : fold(r.name).includes(q))));
-  tlRows.sort((a,b)=>(b.r.examDate||'').localeCompare(a.r.examDate||'') || C.viNameCmp(a.r.name, b.r.name) || a.r.cccd.localeCompare(b.r.cccd));
+  tlRows.sort((a,b)=>(ph ? phoneKey(a.r.phone).localeCompare(phoneKey(b.r.phone)) : 0) || (b.r.examDate||'').localeCompare(a.r.examDate||'') || C.viNameCmp(a.r.name, b.r.name) || a.r.cccd.localeCompare(b.r.cccd)); /* đang lọc SĐT: xếp các số giống nhau liền nhau */
   tlSel = new Set([...tlSel].filter(id => tlRows.some(x=>x.r.id===id)));
   const live = tlRows.filter(x=>!x.r.cancelled), sum = k => live.reduce((s,x)=>s+x.t[k],0);
   $('#tlKpi').innerHTML = [['Người đăng ký', live.length], ['Phải thu', money(live.reduce((s, x) => s + cashTotals(x.r).due, 0))], ['Đã thu', money(live.reduce((s, x) => s + cashTotals(x.r).paid, 0))], ['Còn nợ', money(sum('left'))], ['Chưa nộp đủ', live.filter(x=>x.t.left>0).length + ' người']]
@@ -1466,7 +1481,7 @@ function renderTL(){
   $('#tlTable').innerHTML = tlRows.length ? `<table><tr><th><input type="checkbox" id="tlAll" aria-label="Chọn tất cả"></th><th class="num">STT</th><th>Họ tên</th><th>CCCD</th><th>Ngày sinh</th><th>SĐT</th><th>Nơi cư trú</th><th>Thi lại</th><th>Rớt / thi cuối</th><th>Đợt thi</th><th>Ngày ĐK</th><th class="num">Phải thu</th><th class="num">Đã thu</th><th class="num">Còn nợ</th><th>Thanh toán</th><th>Kết quả đợt</th><th>Ghi chú</th><th></th></tr>
     ${tlRows.map(({r,t,o,ev},i)=>`<tr class="${t.left>0&&!r.cancelled&&r.examDate&&r.examDate<=todayISO()?'bad-row':''}">
       <td><input type="checkbox" class="tlChk" data-id="${r.id}" ${tlSel.has(r.id)?'checked':''} aria-label="Chọn"></td><td class="num">${i+1}</td>
-      <td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a></td><td class="mono">${esc(mask(r.cccd))}</td><td class="mono">${esc(typeof r.dob==='string'&&r.dob.includes('-')?fd(r.dob):r.dob||'')}</td><td class="mono">${esc(r.phone||'')}</td>
+      <td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a></td><td class="mono">${esc(mask(r.cccd))}</td><td class="mono">${esc(typeof r.dob==='string'&&r.dob.includes('-')?fd(r.dob):r.dob||'')}</td><td class="mono">${r.phone ? `<a href="#" class="phf" data-ph="${esc(phoneKey(r.phone))}" title="Lọc những người cùng SĐT / người nhận này">${esc(r.phone)}</a>` : ''}</td>
       <td class="small" style="white-space:normal;min-width:180px">${regAddr(r) ? esc(regAddr(r)) : '<span class="muted">không có trong dữ liệu</span>'}</td>
       <td><b>${esc(partsLbl(r))}</b>${r.items.GPLX115?' <span class="small muted">+GPLX</span>':''}${regIssues(r).length ? ` <button class="b s" style="color:var(--bad);border-color:var(--bad)" title="${esc(regIssues(r).join('; '))}" onclick="showIssues('${r.id}')">Cần kiểm tra</button>` : ''}</td><td class="mono">${ev?fd(ev.lastDate):''}</td><td class="mono">${fd(r.examDate)}</td><td class="mono">${fd(r.regDate)}</td>
       <td class="num">${money(t.due)}</td><td class="num">${money(t.paid)}</td><td class="num ${t.left?'r-T':''}">${t.left?money(t.left):''}</td>
@@ -1489,7 +1504,12 @@ $('#tlTable').addEventListener('change', e => {
   if (e.target.classList.contains('tlChk')) { e.target.checked ? tlSel.add(e.target.dataset.id) : tlSel.delete(e.target.dataset.id); updTlSel(); }
 });
 $('#tlTable').addEventListener('click', e => { const ad = e.target.closest('a[data-addr]'); if (ad) { e.preventDefault(); return editReg(ad.dataset.addr); } const a = e.target.closest('a[data-q]'); if (a) { e.preventDefault(); switchTab('quay'); $('#q').value = a.dataset.q; showPerson(a.dataset.q); window.scrollTo(0,0); } });
-['tlDot','tlPay','tlNeed','tlKq','tlSearch'].forEach(id => $('#'+id).addEventListener('input', renderTL));
+['tlDot','tlPay','tlNeed','tlKq','tlSearch','tlPhone'].forEach(id => $('#'+id).addEventListener('input', renderTL));
+/* Khoá so sánh SĐT: "#0912345678" cho số (bỏ dấu cách, chấm; +84 → 0), "@KIET" cho tên người nhận (bỏ dấu, viết hoa) */
+function phoneKey(v){ const s = C.norm(v); if (!s) return ''; let d = s.replace(/\D/g, ''); if (d.startsWith('84') && d.length === 11) d = '0' + d.slice(2);
+  return d.length >= 9 && d.length >= s.replace(/[\s.\-()+]/g, '').length - 1 ? '#' + d : '@' + fold(s).toUpperCase().replace(/\s+/g, ' ').trim(); }
+$('#tlTable').addEventListener('click', e => { const a = e.target.closest('a.phf'); if (!a) return; e.preventDefault(); e.stopPropagation(); const sel = $('#tlPhone');
+  if ([...sel.options].some(o => o.value === a.dataset.ph)) sel.value = a.dataset.ph; else { sel.add(new Option(a.textContent, a.dataset.ph)); sel.value = a.dataset.ph; } renderTL(); toast('Đang lọc theo SĐT / người nhận: ' + a.textContent + ' (chọn “Tất cả” ở ô SĐT để bỏ lọc)', 3500); }, true);
 $('#tlBulkPay').onclick = () => {
   const list = [...tlSel].map(id=>S.regs.find(r=>r.id===id)).filter(r=>r && !r.cancelled && regTotals(r).left>0);
   const sum = list.reduce((s,r)=>s+regTotals(r).left,0);
