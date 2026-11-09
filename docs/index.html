@@ -4521,8 +4521,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.1', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.9.2', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.9.2', '09/11/2026', ['Cột 14 DS thi lại: chỉ xét học viên có vắng hay không tại đúng ngày “Thời gian trượt” (cột 8): ghi Vắng LT / Vắng H / Vắng LT+H, có thi thì để trống']],
   ['3.9.1', '09/11/2026', ['Sửa cột “Vắng thi gần nhất” trong DS thi lại (trước để trống khi đợt chưa thi): nay ghi ngày và phần học viên vắng gần nhất trong lịch sử, kèm ghi chú nếu đợt sau đó có thi; đợt đã có kết quả thì ghi kết quả của chính đợt đó']],
   ['3.9.0', '25/10/2026', ['Ảnh nền cho tool (nút “Ảnh nền” trên thanh trên cùng): chỉnh độ phủ màu, làm mờ, khung trong suốt nhẹ, phủ kín / vừa khung; lưu riêng từng máy', 'Chống giật: ảnh tự thu nhỏ ≤1920px và nén, làm mờ và phủ màu tính sẵn một lần, lớp nền cố định riêng; máy yếu tự tắt khung trong suốt', 'Tăng tốc: mỗi thao tác (thu tiền, đăng ký…) trước đây vẽ lại cả danh sách 27.000 người mất ~1 giây, nay chỉ ~60 ms; danh sách bảo lưu chỉ vẽ khi mở tab đó và sắp xếp 1 lần']],
   ['3.8.0', '24/10/2026', ['Giới hạn số người thi lại cho từng đợt (tuỳ chọn): nhắc khi còn ít chỗ (mặc định 10), chặn nhập thêm khi đủ ở mọi đường nhập (quầy, đăng ký nhanh, chuyển Trượt/Vắng, đổi đợt, bỏ huỷ, khôi phục); để trống = không giới hạn', 'Dấu “!” giải thích chức năng: cạnh tiêu đề mỗi trang và cạnh các nút / mục chính', 'Sửa lỗi nút “Soạn tin nhắn” trùng mã với ô thông báo đăng ký nhanh']],
@@ -4764,7 +4765,7 @@ $('#tlExport').onclick = () => {
     return { 'STT': i + 1, 'Họ và tên': r.name, 'Ngày sinh': dobText(r.dob), 'CCCD': r.cccd, 'SĐT': r.phone || phoneOf(r.cccd), 'Nơi cư trú': regAddr(r),
       'Phần thi lại': ndLabel(r.parts), 'Thi lần cuối': ev ? fd(ev.lastDate) : '', 'Ngày bảo lưu': fd(reservedDate(r)), 'Đợt thi lại': fd(r.examDate), 'Ngày đăng ký': fd(r.regDate),
       'Lệ phí LT': it.LT || 0, 'Lệ phí Hình': it.H || 0, 'Phí cấp thẻ GPLX': it.GPLX115 || 0, 'Phí duyệt HS': it.DUYET || 0, 'Giảm trừ': r.adjust || 0,
-      'Phải thu': t.due, 'Đã thu': t.paid, 'Còn nợ': t.left, 'Thanh toán': PST[t.st], 'Kết quả đợt': o.l || '', 'Vắng thi gần nhất': absentLabel(r),
+      'Phải thu': t.due, 'Đã thu': t.paid, 'Còn nợ': t.left, 'Thanh toán': PST[t.st], 'Kết quả đợt': o.l || '', 'Vắng (ngày trượt)': absentAt(r.cccd, lastFailDate(r.cccd)),
       'Hạn BL lý thuyết': ev && ev.expiry.LT ? fd(ev.expiry.LT) : '', 'Hạn BL hình': ev && ev.expiry.H ? fd(ev.expiry.H) : '',
       'Số lần đã thi': p ? p.attempts.length : 0, 'Ghi chú': [r.note, r.cancelReason, r.adjNote].filter(Boolean).join('; ') }; });
   exportXlsx(`BANG_CHI_TIET_THI_LAI_${dotV && dotV !== '*' ? dotV.split('-').reverse().join('-') : todayISO()}.xlsx`, [['Chi tiet thi lai', rows, { title: 'Bảng chi tiết đăng ký sát hạch lại – hạng A1', sub: `Đợt: ${dl} · Xuất ngày ${fd(todayISO())}${curUser() ? ' · Người xuất: ' + curUser() : ''} · ${rows.length} học viên`, wide: { 'Họ và tên': 26, 'Nơi cư trú': 40, 'Số lần đã thi': 8, 'Ghi chú': 24, 'Thanh toán': 13, 'Kết quả đợt': 11 } }]]);
@@ -4792,7 +4793,7 @@ function buildTLForm(regs){
     ['GIAO THÔNG VẬN TẢI BÌNH ĐỊNH','','','','','Độc lập - Tự do - Hạnh phúc','','','','','','','','',''],
     ['DANH SÁCH THÍ SINH DỰ SÁT HẠCH','','','','','','','','','','','','','',''],
     [], [], [], [],
-    ['STT','Họ và tên','Ngày tháng năm sinh','Số định danh','Nơi cư trú','Giấy chứng nhận sức khỏe hợp lệ','Đã có giấy phép lái xe hạng','Thời gian trượt',`phí kiểm duyệt ${k(P.DUYET)}`,`lệ phí LT ${k(P.LT)}`,`lệ phí H ${k(P.H)}`,`Phí GPLX ${k(P.GPLX)}`,'Nội dung SH lại','Số điện thoại','Ngày bảo lưu','Vắng thi gần nhất'],
+    ['STT','Họ và tên','Ngày tháng năm sinh','Số định danh','Nơi cư trú','Giấy chứng nhận sức khỏe hợp lệ','Đã có giấy phép lái xe hạng','Thời gian trượt',`phí kiểm duyệt ${k(P.DUYET)}`,`lệ phí LT ${k(P.LT)}`,`lệ phí H ${k(P.H)}`,`Phí GPLX ${k(P.GPLX)}`,'Nội dung SH lại','Số điện thoại','Ngày bảo lưu','Vắng (ngày ở cột 8)'],
     ['','','','','','','','','','','','','','','',''], ['','','','','','','','','','','','','','','',''],
     ['(1)','(2)','(3)','(4)','(5)','(6)','(7)','(8)','','','(10)','','(11)','(12)','(13)','(14)']
   ];
@@ -4800,7 +4801,7 @@ function buildTLForm(regs){
   rows.forEach((r, i) => {
     const fail = lastFailDate(r.cccd), it = r.items;
     const rec = { stt: i + 1, name: C.norm(r.name).toUpperCase(), dob: dobText(r.dob), cccd: r.cccd, addr: regAddr(r), sk: r.sk === false ? '' : 'x', gplx: r.gplxHang || '',
-      fail, nd: ndLabel(r.parts), phone: r.phone || phoneOf(r.cccd), bl: reservedDate(r), vang: absentLabel(r) };
+      fail, nd: ndLabel(r.parts), phone: r.phone || phoneOf(r.cccd), bl: reservedDate(r), vang: absentAt(r.cccd, fail) };
     const ist = itemStatus(r), fee = k => !it[k] || ist[k] === 'giam' ? null : ist[k] === 'paid' ? it[k] : 'chưa nộp';
     Object.assign(rec, { duyet: fee('DUYET'), lt: fee('LT'), h: fee('H'), gplx115: fee('GPLX115') });
     out.push(rec);
@@ -4827,7 +4828,7 @@ function buildTLForm(regs){
   }
   ws['!merges'] = [ { s:{r:0,c:0}, e:{r:0,c:3} }, { s:{r:0,c:5}, e:{r:0,c:15} }, { s:{r:1,c:0}, e:{r:1,c:3} }, { s:{r:1,c:5}, e:{r:1,c:15} }, { s:{r:2,c:0}, e:{r:2,c:15} },
     ...Array.from({ length: 16 }, (_, c) => ({ s: { r: 7, c }, e: { r: 9, c } })) ];
-  ws['!cols'] = [5.5, 32, 11.5, 13.5, 40, 7.5, 7, 10.5, 10.5, 10.5, 11, 11, 10.5, 12.5, 11.5, 22].map(wch => ({ wch }));
+  ws['!cols'] = [5.5, 32, 11.5, 13.5, 40, 7.5, 7, 10.5, 10.5, 10.5, 11, 11, 10.5, 12.5, 11.5, 13].map(wch => ({ wch }));
   ws['!rows'] = [{ hpt: 18 }, { hpt: 18 }, { hpt: 26 }, { hidden: true }, { hidden: true }, { hidden: true }, { hidden: true }, { hpt: 26 }, { hpt: 26 }, { hpt: 26 }, { hpt: 18 }, ...out.map(() => ({ hpt: 19 }))];
   ws['!autofilter'] = { ref: `A11:P${Math.max(11, last + 1)}` };
   ws['!margins'] = { left: 0.35, right: 0.35, top: 0.5, bottom: 0.5, header: 0.3, footer: 0.3 };
@@ -6939,6 +6940,8 @@ function lastAbsence(cccd, upto){
   const at = p.attempts.filter(a => a.date && (!upto || a.date <= upto)).slice().sort((x, y) => y.date.localeCompare(x.date));
   const ab = at.find(a => isAbsent(a)); return ab ? { a: ab, part: isAbsent(ab), latest: at[0] } : null;
 }
+/* Cột 14 DS thi lại: có vắng tại đúng ngày "Thời gian trượt" (cột 8) không */
+function absentAt(cccd, date){ if (!date) return ''; const a = attemptAt(cccd, date); return a && isAbsent(a) ? 'Vắng ' + isAbsent(a) : ''; }
 function absentLabel(r){
   if (!r) return '';
   if (r.examDate && dotDone(r.examDate)) {
@@ -7035,7 +7038,7 @@ const PAGE_HELP = {
 const HINTS = [
   ['#qGo', 'Tra cứu theo CCCD (12 số) hoặc họ tên. Máy quét QR CCCD: quét thẳng vào ô, tool tự lấy CCCD, họ tên, ngày sinh, nơi cư trú.'],
   ['#qSide h2', 'Số lượng đăng ký thi lại từng đợt, cập nhật ngay khi nhập. Thẻ viền xanh = có người nộp hôm nay. Thanh màu = giới hạn số người (xanh còn chỗ, vàng sắp đủ, đỏ đã đủ). Bấm thẻ để mở danh sách đợt đó.'],
-  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột “Vắng thi gần nhất”: ngày và phần học viên vắng gần nhất (vd “Vắng H 12/10/2026”), kèm ghi chú nếu đợt sau đó có thi → biết tìm biên bản thi nào. Trống = chưa từng vắng.'],
+  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột Vắng: học viên có vắng tại đúng ngày ở cột “Thời gian trượt” không (Vắng LT / Vắng H / Vắng LT+H; trống = có thi) → biết tìm biên bản thi nào.'],
   ['#tlExport', 'Bảng chi tiết đầy đủ: lệ phí từng khoản, đã thu, còn nợ, kết quả đợt, vắng thi gần nhất, hạn bảo lưu.'],
   ['#tlTransfer', 'Sau khi nạp kết quả: đăng ký lại một lần tất cả người Trượt / Vắng của đợt cũ sang đợt mới. Xem trước phần thi, lệ phí, người bị bỏ qua; tiền bảo lưu tự trừ. Kiểm tra giới hạn số người của đợt mới.'],
   ['#tlBulkHen', 'In giấy hẹn sát hạch (2 tờ / A4) cho các dòng đã tick: ngày, giờ, địa điểm, lệ phí còn nợ và QR chuyển khoản đúng số tiền.'],

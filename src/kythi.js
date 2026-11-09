@@ -433,6 +433,8 @@ function lastAbsence(cccd, upto){
   const at = p.attempts.filter(a => a.date && (!upto || a.date <= upto)).slice().sort((x, y) => y.date.localeCompare(x.date));
   const ab = at.find(a => isAbsent(a)); return ab ? { a: ab, part: isAbsent(ab), latest: at[0] } : null;
 }
+/* Cột 14 DS thi lại: có vắng tại đúng ngày "Thời gian trượt" (cột 8) không */
+function absentAt(cccd, date){ if (!date) return ''; const a = attemptAt(cccd, date); return a && isAbsent(a) ? 'Vắng ' + isAbsent(a) : ''; }
 function absentLabel(r){
   if (!r) return '';
   if (r.examDate && dotDone(r.examDate)) {
@@ -529,7 +531,7 @@ const PAGE_HELP = {
 const HINTS = [
   ['#qGo', 'Tra cứu theo CCCD (12 số) hoặc họ tên. Máy quét QR CCCD: quét thẳng vào ô, tool tự lấy CCCD, họ tên, ngày sinh, nơi cư trú.'],
   ['#qSide h2', 'Số lượng đăng ký thi lại từng đợt, cập nhật ngay khi nhập. Thẻ viền xanh = có người nộp hôm nay. Thanh màu = giới hạn số người (xanh còn chỗ, vàng sắp đủ, đỏ đã đủ). Bấm thẻ để mở danh sách đợt đó.'],
-  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột “Vắng thi gần nhất”: ngày và phần học viên vắng gần nhất (vd “Vắng H 12/10/2026”), kèm ghi chú nếu đợt sau đó có thi → biết tìm biên bản thi nào. Trống = chưa từng vắng.'],
+  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột Vắng: học viên có vắng tại đúng ngày ở cột “Thời gian trượt” không (Vắng LT / Vắng H / Vắng LT+H; trống = có thi) → biết tìm biên bản thi nào.'],
   ['#tlExport', 'Bảng chi tiết đầy đủ: lệ phí từng khoản, đã thu, còn nợ, kết quả đợt, vắng thi gần nhất, hạn bảo lưu.'],
   ['#tlTransfer', 'Sau khi nạp kết quả: đăng ký lại một lần tất cả người Trượt / Vắng của đợt cũ sang đợt mới. Xem trước phần thi, lệ phí, người bị bỏ qua; tiền bảo lưu tự trừ. Kiểm tra giới hạn số người của đợt mới.'],
   ['#tlBulkHen', 'In giấy hẹn sát hạch (2 tờ / A4) cho các dòng đã tick: ngày, giờ, địa điểm, lệ phí còn nợ và QR chuyển khoản đúng số tiền.'],
