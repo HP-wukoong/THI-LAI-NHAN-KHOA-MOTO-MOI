@@ -126,8 +126,10 @@ html.hasbg .tl-head{background:transparent}
 @media print{.tl-arr,.tl-tip{display:none!important} #tlTable{max-height:none!important;overflow:visible!important}}
 .qwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
 .qwrap .qmain{min-width:0}
-.qside{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:12px 12px 8px}
-@media (max-width:1200px){.qwrap{grid-template-columns:1fr}.qside{position:static;max-height:none}}
+.qside{position:sticky;top:calc(var(--tbH,60px) + 12px);max-height:calc(100vh - var(--tbH,60px) - 24px);display:flex;flex-direction:column;overflow:hidden;padding:12px 12px 8px}
+.qs-list{flex:1 1 auto;min-height:120px;overflow-y:auto;overscroll-behavior:contain;margin:0 -6px 6px;padding:0 6px;scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+.qs-list::-webkit-scrollbar{width:9px} .qs-list::-webkit-scrollbar-thumb{background:var(--muted);border-radius:6px}
+@media (max-width:1200px){.qwrap{grid-template-columns:1fr}.qside{position:static;max-height:none}.qs-list{max-height:60vh}}
 .qside h2{margin:0 0 2px;font-size:14px}
 .qs-tot{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 10px}
 .qs-tot div{border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;background:var(--bg)}
@@ -1296,8 +1298,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.4', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.9.5', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.9.5', '09/11/2026', ['Khung số lượng ở Quầy: đợt đã qua ngày sát hạch tự ẩn; danh sách đợt có thanh trượt riêng khi nhiều khóa (phần tổng ở trên đứng yên)']],
   ['3.9.4', '09/11/2026', ['Đăng ký thi lại: thêm bộ lọc “SĐT / người nhận”: số trùng nhau, ghi tên người nhận thay số (từng tên kèm số người), có số, để trống; bấm vào SĐT trong bảng để lọc nhanh những người cùng số / cùng người nhận']],
   ['3.9.3', '09/11/2026', ['Đăng ký thi lại: phần số liệu + bộ lọc + tiêu đề bảng đứng yên khi kéo danh sách (bảng cuộn trong khung vừa màn hình)', 'Thanh trượt ngang luôn ở cuối màn hình, nút ‹ › hai bên để xem cột bị ẩn, Shift + cuộn chuột; cột chọn, STT, họ tên cố định bên trái']],
   ['3.9.2', '09/11/2026', ['Cột 14 DS thi lại: chỉ xét học viên có vắng hay không tại đúng ngày “Thời gian trượt” (cột 8): ghi Vắng LT / Vắng H / Vắng LT+H, có thi thì để trống']],
