@@ -768,6 +768,7 @@ function bkCheck(row, exam, regDate, seen){
   x.ev = ev; x.dname = ev.name;
   /* năm sinh trong CCCD (số 4 = thế kỷ, số 5–6 = năm) phải khớp ngày sinh trong dữ liệu */
   const yr = (+id[3] < 2 ? 1900 : 2000) + +id.slice(4, 6), dob = String((p && p.dob) || ''), dy = (dob.match(/(19|20)\d{2}/) || [])[0];
+  if (dy && +dy !== yr && yr > +todayISO().slice(0, 4)) x.idWarn = true; /* CCCD cho năm sinh tương lai: luôn bắt xem lại */
   if (dy && +dy !== yr) { warn.push(yr > +todayISO().slice(0, 4) ? `Số CCCD cho năm sinh ${yr} (không hợp lý), dữ liệu ghi ${dobText(dob)} — kiểm tra lại số CCCD` : `Năm sinh theo CCCD ${yr} ≠ ngày sinh trong dữ liệu ${dobText(dob)}`); susp = true; }
   /* họ tên: lấy từ cột tên, hoặc ô chữ khớp tên; ô chữ còn lại coi là người nhận */
   if (row.texts) { const t = row.texts, hit = t.find(s => fold(s) === fold(ev.name)); if (hit) { row.name = hit; const o = t.filter(s => s !== hit); if (!row.phone && o.length) row.phone = o[0]; }
@@ -872,6 +873,7 @@ function bkCommit(){
       if (activeReg(x.id)) { skip.push([x, 'Vừa có đăng ký khác']); continue; }
       const r = makeRetake(x.id, x.date || BKL.regDate, BKL.exam, 'Đăng ký hàng loạt' + (BKL.src ? ' · ' + BKL.src : ''), x.ph, '');
       if (!r) { skip.push([x, makeRetake.full ? 'Đợt đã đủ số lượng giới hạn' : 'Không cần thi lại tại đợt này']); continue; }
+      { const is = cccdIssues(x.id, (H.people.get(x.id) || {}).dob); if (is.length) { r.cccdChecked = { at: nowISO(), by: curUser() || '', issues: is, bulk: true }; logA('Đăng ký dù CCCD có dấu hiệu sai (hàng loạt)', x.id, r.name, is.join('; ')); } }
       let p = null; const amt = Math.min(x.pay || 0, regTotals(r).left);
       if (amt > 0) p = addPay({ regId: r.id, cccd: r.cccd, date: todayISO(), amount: amt, method: mt.method, txn: mt.txn, note: 'Thu khi đăng ký hàng loạt' });
       const t = regTotals(r); sumDue += cashTotals(r).due; sumPay += amt; done.push({ x, r, p, t });
@@ -896,4 +898,20 @@ function bkResultExport(){
   exportXlsx(`KET_QUA_DANG_KY_HANG_LOAT_${(BKL.exam || '').replace(/-/g, '')}_${todayISO()}.xlsx`, [
     ['Da dang ky', R.done.map(({ x, r, p, t }, i) => ({ 'STT': i + 1, 'Họ và tên': r.name, 'CCCD': r.cccd, 'SĐT / người nhận': r.phone || '', 'Nội dung SH lại': ndLabel(r.parts), 'Lệ phí': cashTotals(r).due, 'Đã nộp': cashTotals(r).paid, 'Còn nợ': t.left, 'Số phiếu thu': p ? p.no : '', 'Hình thức': p ? PM[p.method] : '' })), { title: `Đã đăng ký thi lại đợt ${dotLabel(BKL.exam)} (${R.done.length} người)` }],
     ['Khong dang ky', R.bad.map(([x, why], i) => ({ 'STT': i + 1, 'Dòng trong DS': x.line, 'CCCD': x.id || x.cccd || '', 'Họ tên': x.dname || x.name || '', 'Lý do': why })), { title: 'Các dòng không đăng ký', wide: { 'Lý do': 70 } }]]);
+}
+
+/* ---------------- KIỂM TRA SỐ CCCD CÓ DẤU HIỆU SAI ----------------
+   CCCD 12 số: 3 số đầu = mã tỉnh nơi khai sinh, số thứ 4 = giới tính + thế kỷ (0/1: 1900–1999, 2/3: 2000–2099), số 5–6 = 2 số cuối năm sinh. */
+function cccdIssues(id, dob){
+  id = String(id || ''); const out = []; if (!/^\d{12}$/.test(id)) return id.length === 9 ? [] : ['CCCD không đủ 12 số'];
+  if (!PROV.has(id.slice(0, 3))) out.push(`mã tỉnh “${id.slice(0, 3)}” không tồn tại`);
+  if (!'0123'.includes(id[3])) { out.push(`số thứ 4 là “${id[3]}” (chỉ có 0–3)`); return out; }
+  const yr = (+id[3] < 2 ? 1900 : 2000) + +id.slice(4, 6), dy = (String(dob || '').match(/(19|20)\d{2}/) || [])[0], now = +todayISO().slice(0, 4);
+  if (yr > now) out.push(`số CCCD cho năm sinh ${yr} (không hợp lý)${dy ? `, dữ liệu ghi năm ${dy}` : ''}`);
+  else if (dy && +dy !== yr) out.push(`năm sinh theo CCCD là ${yr}, dữ liệu ghi năm ${dy}`);
+  return out;
+}
+function cccdWarnHtml(id, dob, withCheck){
+  const is = cccdIssues(id, dob); if (!is.length) return '';
+  return `<div class="alert bad" style="margin:8px 0"><b>⚠ Số CCCD ${esc(id)} có dấu hiệu sai:</b> ${is.map(esc).join('; ')}.<br><span class="small">Đối chiếu với thẻ CCCD gốc của học viên. Nếu số trong dữ liệu Hội đồng sai thì báo Hội đồng sửa để khỏi lệch hồ sơ khi sát hạch / cấp GPLX.</span>${withCheck ? `<label class="small" style="display:flex;gap:6px;margin-top:6px;font-weight:600"><input type="checkbox" id="cwOk"> Đã đối chiếu CCCD gốc, vẫn đăng ký cho người này</label>` : ''}</div>`;
 }

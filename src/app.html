@@ -109,6 +109,7 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 #hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
 #hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
 @media print{.hint,#hintPop{display:none!important}}
+.cw-ic{display:inline-block;margin-left:5px;color:var(--bad);font-weight:800;cursor:help}
 .bk-assign{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--bg))}
 .bk-tw{max-height:62vh;overflow:auto} .bk-tw th{z-index:2}
 .bk-in{padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px} .bk-in.num{text-align:right;font-family:var(--mono)}
@@ -1147,7 +1148,7 @@ function showPerson(id){
   $('#qOut').innerHTML = `<div class="grid2">
     <div class="panel">
       <div class="row" style="justify-content:space-between;align-items:center"><h2 style="margin:0">${esc(p.name)}</h2>${pill(evT.status)}</div>
-      <p class="small">Ngày sinh <b>${esc(dob)}</b> · CCCD <span class="mono">${esc(id)}</span>${p.addr ? ' · ' + esc(p.addr) : ''}<br>Đã dự ${ev.n} kỳ · lần cuối ${fd(ev.lastDate)}${ev.status==='DAT' && ev.passDate ? ` · <b class="r-D">Đạt ngày ${fd(ev.passDate)}</b>` : ''}${ev.need && ev.need.length ? ` · cần thi: <b>${ev.needLabel}</b>` : ''}</p>
+      <p class="small">Ngày sinh <b>${esc(dob)}</b> · CCCD <span class="mono">${esc(id)}</span>${p.addr ? ' · ' + esc(p.addr) : ''}<br>Đã dự ${ev.n} kỳ · lần cuối ${fd(ev.lastDate)}${ev.status==='DAT' && ev.passDate ? ` · <b class="r-D">Đạt ngày ${fd(ev.passDate)}</b>` : ''}${ev.need && ev.need.length ? ` · cần thi: <b>${ev.needLabel}</b>` : ''}</p>${cccdWarnHtml(id, p.dob)}
       <h3>Hạn bảo lưu (so với đợt thi ${fd(T)}${ar ? ' đã đăng ký' : ' sắp tới'})</h3>
       <div class="feeitems"><span>Lý thuyết</span><span>${exp('LT')}</span><span>Hình</span><span>${exp('H')}</span></div>
       <div style="display:flex;flex-direction:column;gap:6px;margin-top:10px">${warn.join('')}</div>
@@ -1205,18 +1206,20 @@ window.openRetake = id => {
     <label class="f">Đợt thi${dotSelect('dExam', defaultDot())}</label>
     <label class="f">SĐT<input id="dPhone" inputmode="tel" value="${esc(prevPhone)}"></label>
     <label class="f">Thu ngay<input id="dPaid" class="mono" inputmode="numeric" placeholder="0 = nộp sau"></label>${methodHtml('d')}</div>
-    ${staleHtml()}<div id="dFee" style="margin-top:10px"></div>
+    ${cccdWarnHtml(id, p.dob, true)}${staleHtml()}<div id="dFee" style="margin-top:10px"></div>
     <label class="small" id="dUncL" hidden style="display:flex;gap:6px;margin-top:6px"><input type="checkbox" id="dUnc"> Tôi đã đối chiếu hồ sơ gốc, xác nhận hạn bảo lưu ở trên là đúng</label>
     <label class="f" style="margin-top:8px">Ghi chú<input id="dNote"></label>
     <p class="small muted">Để trống “Thu ngay” nếu học viên nộp tiền sau: đăng ký vẫn lưu với trạng thái <b>Chưa nộp</b>, thu sau ở tab Đăng ký thi lại.</p>`,
     () => {
       if (activeReg(id)) return toast('Người này vừa được đăng ký ở nơi khác');
       if (!$('#dExam').value) return toast('Chưa chọn đợt thi');
+      if ($('#cwOk') && !$('#cwOk').checked) return blockMsg('Chưa xác nhận số CCCD', '<p>Số CCCD của học viên này có dấu hiệu sai (xem cảnh báo đỏ). Đối chiếu với thẻ CCCD gốc rồi tick ô <b>“Đã đối chiếu CCCD gốc”</b> trước khi đăng ký.</p>');
       if (capBlock($('#dExam').value, 1)) return;
       const evx = evalFor(id, $('#dExam').value);
       const paid0 = toNum($('#dPaid').value), mt = paid0 ? readMethod('d') : { method: 'TM' }; if (!mt) return;
       if (evx.uncertain && evx.uncertain.length && !$('#dUnc').checked) return blockMsg('Chưa xác nhận hạn bảo lưu', '<p>Ngày đạt gốc của một phần không có trong dữ liệu. Đối chiếu hồ sơ gốc rồi tick ô xác nhận trước khi lưu.</p>');
       const r = makeRetake(id, $('#dReg').value, $('#dExam').value, $('#dNote').value, $('#dPhone').value, '');
+      if (r && $('#cwOk')) { r.cccdChecked = { at: nowISO(), by: curUser() || '', issues: cccdIssues(id, p.dob) }; logA('Đối chiếu CCCD gốc khi đăng ký', id, p.name, cccdIssues(id, p.dob).join('; ')); }
       if (!r) return blockMsg('Không cần thi lại', '<p>Theo dữ liệu, học viên đủ điều kiện ở cả 2 phần tại đợt này.</p>');
       if (evx.uncertain && evx.uncertain.length) { r.uncertainOk = { by: curUser(), at: new Date().toISOString() }; logA('Xác nhận hạn bảo lưu ước tính', id, p.name, evx.uncertain.join(', ')); }
       const paid = toNum($('#dPaid').value);
@@ -1303,8 +1306,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.10.0', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.10.1', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.10.1', '09/11/2026', ['Cảnh báo số CCCD có dấu hiệu sai (mã tỉnh, mã thế kỷ, năm sinh theo CCCD lệch / không hợp lý so với ngày sinh): hiện ngay ở Quầy khi tra cứu, trong hộp đăng ký (phải tick “Đã đối chiếu CCCD gốc” mới đăng ký được), dấu ⚠ cạnh CCCD trong danh sách thi lại, ghi chú trên đăng ký và nhật ký']],
   ['3.10.0', '09/11/2026', ['Đăng ký hàng loạt theo CCCD làm lại: dán từ Excel / chọn file / quét QR → bảng kiểm tra trước từng dòng (xanh: đăng ký được, vàng: cần xem lại, đỏ: bỏ qua kèm lý do) → xác nhận', 'Kiểm tra CCCD: đủ 12 số, mã tỉnh, mã thế kỷ, năm sinh khớp dữ liệu, họ tên khớp, trùng dòng trong danh sách, đã đạt / đã rút / đang có đăng ký, giới hạn đợt', 'Gán hàng loạt SĐT / người nhận và tiền nộp (chưa nộp, nộp đủ, theo cột tiền, số tiền cố định), sửa từng dòng; ghi thu tiền mặt / chuyển khoản luôn', 'Xuất file kết quả: danh sách đã đăng ký và danh sách bỏ qua kèm lý do']],
   ['3.9.5', '09/11/2026', ['Khung số lượng ở Quầy: đợt đã qua ngày sát hạch tự ẩn; danh sách đợt có thanh trượt riêng khi nhiều khóa (phần tổng ở trên đứng yên)']],
   ['3.9.4', '09/11/2026', ['Đăng ký thi lại: thêm bộ lọc “SĐT / người nhận”: số trùng nhau, ghi tên người nhận thay số (từng tên kèm số người), có số, để trống; bấm vào SĐT trong bảng để lọc nhanh những người cùng số / cùng người nhận']],
@@ -1490,7 +1494,7 @@ function renderTL(){
   $('#tlTable').innerHTML = tlRows.length ? `<table><tr><th><input type="checkbox" id="tlAll" aria-label="Chọn tất cả"></th><th class="num">STT</th><th>Họ tên</th><th>CCCD</th><th>Ngày sinh</th><th>SĐT</th><th>Nơi cư trú</th><th>Thi lại</th><th>Rớt / thi cuối</th><th>Đợt thi</th><th>Ngày ĐK</th><th class="num">Phải thu</th><th class="num">Đã thu</th><th class="num">Còn nợ</th><th>Thanh toán</th><th>Kết quả đợt</th><th>Ghi chú</th><th></th></tr>
     ${tlRows.map(({r,t,o,ev},i)=>`<tr class="${t.left>0&&!r.cancelled&&r.examDate&&r.examDate<=todayISO()?'bad-row':''}">
       <td><input type="checkbox" class="tlChk" data-id="${r.id}" ${tlSel.has(r.id)?'checked':''} aria-label="Chọn"></td><td class="num">${i+1}</td>
-      <td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a></td><td class="mono">${esc(mask(r.cccd))}</td><td class="mono">${esc(typeof r.dob==='string'&&r.dob.includes('-')?fd(r.dob):r.dob||'')}</td><td class="mono">${r.phone ? `<a href="#" class="phf" data-ph="${esc(phoneKey(r.phone))}" title="Lọc những người cùng SĐT / người nhận này">${esc(r.phone)}</a>` : ''}</td>
+      <td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a></td><td class="mono">${esc(mask(r.cccd))}${cccdIssues(r.cccd, (H.people.get(r.cccd) || r).dob).length ? `<span class="cw-ic" title="${esc('Số CCCD có dấu hiệu sai: ' + cccdIssues(r.cccd, (H.people.get(r.cccd) || r).dob).join('; ') + (r.cccdChecked ? ' · đã đối chiếu CCCD gốc ' + fd(r.cccdChecked.at.slice(0, 10)) + (r.cccdChecked.by ? ' (' + r.cccdChecked.by + ')' : '') : ' · CHƯA đối chiếu'))}">⚠</span>` : ''}</td><td class="mono">${esc(typeof r.dob==='string'&&r.dob.includes('-')?fd(r.dob):r.dob||'')}</td><td class="mono">${r.phone ? `<a href="#" class="phf" data-ph="${esc(phoneKey(r.phone))}" title="Lọc những người cùng SĐT / người nhận này">${esc(r.phone)}</a>` : ''}</td>
       <td class="small" style="white-space:normal;min-width:180px">${regAddr(r) ? esc(regAddr(r)) : '<span class="muted">không có trong dữ liệu</span>'}</td>
       <td><b>${esc(partsLbl(r))}</b>${r.items.GPLX115?' <span class="small muted">+GPLX</span>':''}${regIssues(r).length ? ` <button class="b s" style="color:var(--bad);border-color:var(--bad)" title="${esc(regIssues(r).join('; '))}" onclick="showIssues('${r.id}')">Cần kiểm tra</button>` : ''}</td><td class="mono">${ev?fd(ev.lastDate):''}</td><td class="mono">${fd(r.examDate)}</td><td class="mono">${fd(r.regDate)}</td>
       <td class="num">${money(t.due)}</td><td class="num">${money(t.paid)}</td><td class="num ${t.left?'r-T':''}">${t.left?money(t.left):''}</td>
