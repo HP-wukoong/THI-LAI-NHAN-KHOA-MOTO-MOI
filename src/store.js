@@ -36,7 +36,7 @@ function migrate(s){
   const from = s.schema || 1;
   s.regs = s.regs || []; s.pays = s.pays || []; s.trash = s.trash || []; s.dots = s.dots || []; s.withdrawals = s.withdrawals || []; s.log = s.log || [];
   s.contacts = s.contacts || {}; s.scanAddr = s.scanAddr || {}; s.khoa = s.khoa || []; s.closings = s.closings || []; s.users = s.users || []; s.seq = s.seq || { PT: {}, PC: {} };
-  s.seq.PT = s.seq.PT || {}; s.seq.PC = s.seq.PC || {}; s.seq.BL = s.seq.BL || {}; s.credits = s.credits || [];
+  s.seq.PT = s.seq.PT || {}; s.seq.PC = s.seq.PC || {}; s.seq.BL = s.seq.BL || {}; s.credits = s.credits || []; s.cccdChk = s.cccdChk || [];
   /* Khoản thu cũ: hình thức mặc định tiền mặt, đánh số phiếu theo thứ tự ngày thu */
   const all = s.pays.concat(s.trash.filter(t => t.type === 'pay').map(t => t.pay), ...s.trash.filter(t => t.type === 'reg').map(t => t.pays || []));
   all.forEach((p, i) => { if (!p.method) p.method = 'TM'; if (!p.createdAt) p.createdAt = (p.date || '2000-01-01') + 'T00:00:00.000Z'; if (p._ord == null) p._ord = i; });
@@ -90,7 +90,7 @@ async function unpackState(text){
 }
 
 /* ---------- Gộp 3 chiều (base = bản chung lần trước, L = máy này, R = thư mục) ---------- */
-const MERGE_KEYS = { regs: 'id', pays: 'id', withdrawals: 'id', trash: 'id', khoa: 'id', closings: 'id', users: 'id', credits: 'id', dots: 'date' };
+const MERGE_KEYS = { regs: 'id', pays: 'id', withdrawals: 'id', trash: 'id', khoa: 'id', closings: 'id', users: 'id', credits: 'id', cccdChk: 'id', dots: 'date' };
 /* Xoá chỉ được công nhận khi có "dấu xoá" (tomb) ghi rõ; bản ghi chỉ thiếu ở một phía thì GIỮ LẠI → không bao giờ mất dữ liệu do 2 máy ghi chồng */
 const maxMap = (a, b) => { const o = Object.assign({}, a || {}); for (const [k, v] of Object.entries(b || {})) if (!o[k] || v > o[k]) o[k] = v; return o; };
 function merge3(base, L, R){
