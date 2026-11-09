@@ -422,16 +422,29 @@ function skSampleWb(){
 }
 $('#skSample').onclick = () => { XLSX.writeFile(skSampleWb(), 'SAO_KE_MAU_VIETINBANK.xlsx'); toast('Đã tải file sao kê mẫu. Nạp thử bằng nút “Chọn file sao kê…”'); };
 
-/* ---------------- CỘT "VẮNG" TRONG DS THI LẠI: đối tượng có dự thi đợt đó không ---------------- */
+/* ---------------- CỘT "VẮNG THI GẦN NHẤT" TRONG DS THI LẠI ----------------
+   Mục đích: biết học viên có dự đợt thi gần nhất không → tìm đúng biên bản lưu.
+   · Đợt đăng ký đã có kết quả: ghi kết quả của chính đợt đó (Có thi / Vắng … / Không có tên).
+   · Chưa thi: ghi lần VẮNG gần nhất trong lịch sử (ngày + phần vắng); nếu sau đó còn đợt có thi thì ghi kèm.
+   · Trượt LT nên không được thi Hình (thi tuần tự) không tính là vắng. */
+const isAbsent = a => { const vLT = a.lt === 'V', vH = a.h === 'V' && a.lt !== 'T'; return vLT || vH ? (vLT && vH ? 'LT+H' : vLT ? 'LT' : 'H') : ''; };
+function lastAbsence(cccd, upto){
+  const p = H.people.get(cccd); if (!p) return null;
+  const at = p.attempts.filter(a => a.date && (!upto || a.date <= upto)).slice().sort((x, y) => y.date.localeCompare(x.date));
+  const ab = at.find(a => isAbsent(a)); return ab ? { a: ab, part: isAbsent(ab), latest: at[0] } : null;
+}
 function absentLabel(r){
-  if (!r || !r.examDate || !dotDone(r.examDate)) return '';            /* đợt chưa thi / chưa nạp kết quả */
-  const a = attemptAt(r.cccd, r.examDate); if (!a) return 'Không có tên trong KQ';
-  const wantLT = r.parts.includes('LT'), wantH = r.parts.includes('H');
-  const vLT = wantLT && a.lt === 'V', vH = wantH && a.h === 'V';
-  if (vLT && vH) return 'Vắng LT+H';
-  if (vLT) return 'Vắng LT';
-  if (vH) return wantLT && a.lt === 'T' ? 'Không thi H (trượt LT)' : 'Vắng H';
-  return 'Có thi';
+  if (!r) return '';
+  if (r.examDate && dotDone(r.examDate)) {
+    const a = attemptAt(r.cccd, r.examDate); if (!a) return `Không có tên trong KQ ${fd(r.examDate)}`;
+    const wantLT = r.parts.includes('LT'), wantH = r.parts.includes('H'), vLT = wantLT && a.lt === 'V', vH = wantH && a.h === 'V';
+    if (vLT && vH) return `Vắng LT+H ${fd(a.date)}`;
+    if (vLT) return `Vắng LT ${fd(a.date)}`;
+    if (vH) return wantLT && a.lt === 'T' ? `Có thi LT ${fd(a.date)} (trượt, không thi H)` : `Vắng H ${fd(a.date)}`;
+    return `Có thi ${fd(a.date)}`;
+  }
+  const x = lastAbsence(r.cccd); if (!x) return '';
+  return `Vắng ${x.part} ${fd(x.a.date)}` + (x.latest && x.latest.date > x.a.date ? ` (đợt ${fd(x.latest.date)} có thi)` : '');
 }
 
 /* ---------------- KHUNG SỐ LƯỢNG ĐĂNG KÝ THEO ĐỢT (quầy) ---------------- */
@@ -498,7 +511,7 @@ function capBar(d){
 const PAGE_HELP = {
   home: ['Việc cần làm: nợ, ca chưa chốt quỹ, đợt chưa nạp kết quả, người trượt/vắng chưa đăng ký lại, tiền bảo lưu… bấm vào từng dòng để đi tới nơi xử lý.', 'Đợt thi sắp tới, tiền thu hôm nay, tình trạng lưu trữ.'],
   quay: ['Gõ CCCD / họ tên rồi Enter, hoặc quét QR trên CCCD gắn chip.', 'Bên trái: hạn bảo lưu từng phần, lịch sử thi. Bên phải: phần phải thi lại, lệ phí, đăng ký, thu tiền, in phiếu, giấy hẹn, trừ tiền bảo lưu.', 'Khung bên phải màn hình: số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H), giới hạn số người; đợt vừa có người nộp tự lên đầu. Bấm thẻ đợt để mở danh sách.', 'Phím tắt: F2 tra cứu · F4 thu tiền · F8 in phiếu.'],
-  tl: ['Danh sách đăng ký thi lại theo đợt; lọc theo thanh toán, phần thi, kết quả đợt.', 'Tick nhiều dòng để: thu đủ, đổi đợt, xoá, in giấy hẹn, soạn tin nhắn.', '“Xuất DS thi lại (mẫu chuẩn)”: file gửi Hội đồng, có cột Ngày bảo lưu và cột Vắng / có thi.', '“Chuyển Trượt/Vắng sang đợt mới”: đăng ký lại một lần cho cả đợt cũ.', 'Ô “Đăng ký nhanh nhiều người”: dán danh sách CCCD (+ SĐT) để đăng ký hàng loạt.'],
+  tl: ['Danh sách đăng ký thi lại theo đợt; lọc theo thanh toán, phần thi, kết quả đợt.', 'Tick nhiều dòng để: thu đủ, đổi đợt, xoá, in giấy hẹn, soạn tin nhắn.', '“Xuất DS thi lại (mẫu chuẩn)”: file gửi Hội đồng, có cột Ngày bảo lưu và cột Vắng thi gần nhất.', '“Chuyển Trượt/Vắng sang đợt mới”: đăng ký lại một lần cho cả đợt cũ.', 'Ô “Đăng ký nhanh nhiều người”: dán danh sách CCCD (+ SĐT) để đăng ký hàng loạt.'],
   mtl: ['Người chưa đạt, chưa đăng ký thi lại: lọc theo phần thi, tình trạng liên hệ, đợt mời.', 'Ghi lịch sử gọi điện / nhắn tin, soạn tin mời, xuất Excel để gọi.'],
   rut: ['Ghi nhận học viên rút hồ sơ (ngày, lý do, tiền hoàn, giấy tờ trả lại), in biên bản.', 'Người đã rút bị chặn đăng ký cho tới khi bấm “Nộp lại hồ sơ”.'],
   ds: ['Toàn bộ thí sinh trong dữ liệu kết quả: trạng thái, phần cần thi, hạn bảo lưu từng phần.', 'Lọc theo tình trạng, ngày thi lần cuối, phần cần thi; xuất Excel.'],
@@ -516,8 +529,8 @@ const PAGE_HELP = {
 const HINTS = [
   ['#qGo', 'Tra cứu theo CCCD (12 số) hoặc họ tên. Máy quét QR CCCD: quét thẳng vào ô, tool tự lấy CCCD, họ tên, ngày sinh, nơi cư trú.'],
   ['#qSide h2', 'Số lượng đăng ký thi lại từng đợt, cập nhật ngay khi nhập. Thẻ viền xanh = có người nộp hôm nay. Thanh màu = giới hạn số người (xanh còn chỗ, vàng sắp đủ, đỏ đã đủ). Bấm thẻ để mở danh sách đợt đó.'],
-  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột “Vắng / có thi”: Có thi, Vắng LT, Vắng H, Vắng LT+H, Không thi H (trượt LT), Không có tên trong KQ → biết tìm biên bản thi nào.'],
-  ['#tlExport', 'Bảng chi tiết đầy đủ: lệ phí từng khoản, đã thu, còn nợ, kết quả đợt, vắng / có thi, hạn bảo lưu.'],
+  ['#tlExportForm', 'File danh sách thí sinh dự sát hạch theo mẫu gửi Hội đồng (A4 ngang). Có cột Ngày bảo lưu và cột “Vắng thi gần nhất”: ngày và phần học viên vắng gần nhất (vd “Vắng H 12/10/2026”), kèm ghi chú nếu đợt sau đó có thi → biết tìm biên bản thi nào. Trống = chưa từng vắng.'],
+  ['#tlExport', 'Bảng chi tiết đầy đủ: lệ phí từng khoản, đã thu, còn nợ, kết quả đợt, vắng thi gần nhất, hạn bảo lưu.'],
   ['#tlTransfer', 'Sau khi nạp kết quả: đăng ký lại một lần tất cả người Trượt / Vắng của đợt cũ sang đợt mới. Xem trước phần thi, lệ phí, người bị bỏ qua; tiền bảo lưu tự trừ. Kiểm tra giới hạn số người của đợt mới.'],
   ['#tlBulkHen', 'In giấy hẹn sát hạch (2 tờ / A4) cho các dòng đã tick: ngày, giờ, địa điểm, lệ phí còn nợ và QR chuyển khoản đúng số tiền.'],
   ['#tlBulkSms', 'Soạn tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi…), tự điền tên, số tiền, STK. Sao chép hoặc xuất Excel; “Ghi đã báo” lưu vào lịch sử liên hệ.'],
