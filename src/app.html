@@ -109,7 +109,10 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 #hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
 #hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
 @media print{.hint,#hintPop{display:none!important}}
-.tl-head{position:sticky;top:var(--tbH,60px);z-index:4;background:var(--bg);padding-top:2px;margin-top:-2px}
+.bk-assign{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--bg))}
+.bk-tw{max-height:62vh;overflow:auto} .bk-tw th{z-index:2}
+.bk-in{padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px} .bk-in.num{text-align:right;font-family:var(--mono)}
+.tl-head{position:relative}
 html.hasbg .tl-head{background:transparent}
 .tl-head > .panel{margin-bottom:10px}
 .tl-listp{padding:8px}
@@ -332,16 +335,18 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     <button type="button" class="tl-arr l" id="tlArrL" aria-label="Kéo sang trái" title="Xem cột bên trái">‹</button><button type="button" class="tl-arr r" id="tlArrR" aria-label="Kéo sang phải" title="Xem cột bên phải">›</button></div>
     <div class="small muted tl-tip">Cuộn chuột trong bảng để xem danh sách (phần trên đứng yên) · <b>Shift + cuộn chuột</b> hoặc bấm ‹ › để xem cột bị ẩn · cột chọn, STT, họ tên luôn cố định bên trái</div></div>
   <div class="panel">
-    <h2>Đăng ký nhanh nhiều người</h2>
-    <p class="small muted">Dán danh sách CCCD (mỗi dòng một người, dán cả cột từ Excel cũng được; có SĐT ở cùng dòng thì tool lấy luôn). Tool tự tính phần thi lại và tiền theo quy tắc, bỏ qua người đã đạt hoặc đã đăng ký.</p>
+    <h2 id="bkTitle">Đăng ký hàng loạt theo CCCD</h2>
+    <p class="small muted">Copy vùng dữ liệu trong Excel (cột CCCD bắt buộc; có thêm Họ tên, SĐT / người nhận, Số tiền, Ngày ĐK thì tool lấy luôn; có hay không có dòng tiêu đề đều được) rồi dán vào ô dưới, hoặc chọn file Excel, hoặc quét QR CCCD liên tục. Bấm <b>Kiểm tra danh sách</b> để xem trước từng dòng — <b>chưa đăng ký ai</b> cho tới khi bấm xác nhận.</p>
     <div class="row">
-      <textarea id="tlBulk" rows="5" style="flex:1;min-width:240px;font-family:var(--mono)" placeholder="052000000001&#10;052000000002  0900000000"></textarea>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <label class="f">Ngày đăng ký<input type="date" id="tlBulkReg"></label>
+      <textarea id="tlBulk" rows="6" style="flex:1;min-width:240px;font-family:var(--mono)" placeholder="052000000001&#9;NGUYỄN VĂN A&#9;0900000000&#9;295000&#10;052000000002&#9;TRẦN THỊ B&#9;KIỆT"></textarea>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <label class="f">Đợt thi<select id="tlBulkExam"></select></label>
-        <button class="b p" id="tlBulkGo">Đăng ký</button>
+        <label class="f">Ngày đăng ký<input type="date" id="tlBulkReg"></label>
+        <div class="row" style="gap:6px"><label class="b" style="cursor:pointer;flex:1;text-align:center">Chọn file Excel…<input type="file" id="bkFile" accept=".xlsx,.xls,.csv" hidden></label><button type="button" class="b" id="bkClear" title="Xoá ô dán và bảng kiểm tra">Xoá</button></div>
+        <button class="b p" id="tlBulkGo">Kiểm tra danh sách →</button>
       </div>
     </div>
+    <div id="bkOut"></div>
     <div id="tlBulkMsg" class="small" style="margin-top:6px"></div>
   </div>
 </section>
@@ -1298,8 +1303,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.5', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.10.0', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.10.0', '09/11/2026', ['Đăng ký hàng loạt theo CCCD làm lại: dán từ Excel / chọn file / quét QR → bảng kiểm tra trước từng dòng (xanh: đăng ký được, vàng: cần xem lại, đỏ: bỏ qua kèm lý do) → xác nhận', 'Kiểm tra CCCD: đủ 12 số, mã tỉnh, mã thế kỷ, năm sinh khớp dữ liệu, họ tên khớp, trùng dòng trong danh sách, đã đạt / đã rút / đang có đăng ký, giới hạn đợt', 'Gán hàng loạt SĐT / người nhận và tiền nộp (chưa nộp, nộp đủ, theo cột tiền, số tiền cố định), sửa từng dòng; ghi thu tiền mặt / chuyển khoản luôn', 'Xuất file kết quả: danh sách đã đăng ký và danh sách bỏ qua kèm lý do']],
   ['3.9.5', '09/11/2026', ['Khung số lượng ở Quầy: đợt đã qua ngày sát hạch tự ẩn; danh sách đợt có thanh trượt riêng khi nhiều khóa (phần tổng ở trên đứng yên)']],
   ['3.9.4', '09/11/2026', ['Đăng ký thi lại: thêm bộ lọc “SĐT / người nhận”: số trùng nhau, ghi tên người nhận thay số (từng tên kèm số người), có số, để trống; bấm vào SĐT trong bảng để lọc nhanh những người cùng số / cùng người nhận']],
   ['3.9.3', '09/11/2026', ['Đăng ký thi lại: phần số liệu + bộ lọc + tiêu đề bảng đứng yên khi kéo danh sách (bảng cuộn trong khung vừa màn hình)', 'Thanh trượt ngang luôn ở cuối màn hình, nút ‹ › hai bên để xem cột bị ẩn, Shift + cuộn chuột; cột chọn, STT, họ tên cố định bên trái']],
@@ -1537,25 +1543,7 @@ $('#tlBulkDel').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=
     for (const r of list) { const pays = S.pays.filter(p=>p.regId===r.id); S.trash.push({ id: uid(), type: 'reg', at: new Date().toISOString(), reg: r, pays }); }
     logA('Xoá hàng loạt', '', '', `${list.length} đăng ký: ${list.map(r=>r.name).join(', ').slice(0,300)}`); const ids = new Set(list.map(r=>r.id)); S.regs = S.regs.filter(r=>!ids.has(r.id)); S.pays = S.pays.filter(p=>!ids.has(p.regId)); tlSel.clear(); refresh(); toast('Đã xoá ' + list.length + ' đăng ký'); }, 'Xoá'); };
 $('#tlBulkReg').value = todayISO();
-$('#tlBulkGo').onclick = () => {
-  if (!$('#tlBulkExam').value) return blockMsg('Chưa có đợt thi', '<p>Thêm ngày sát hạch dự kiến ở tab <b>Đợt thi</b> trước.</p>');
-  const lines = $('#tlBulk').value.split(/\n/); let ok = 0, sum = 0; const skip = [];
-  for (const line of lines) {
-    const nums = line.split(/\D+/).filter(x=>x.length>=9); if (!nums.length) continue; const idRaw = nums.find(x=>x.length===12||x.length===11); if (!idRaw) { skip.push(line.trim()+': không thấy CCCD'); continue; }
-    const id = C.normCCCD(idRaw).id, rest = line.replace(idRaw, '').replace(/\D/g, ''), phone = rest.length >= 9 && rest.length <= 11 ? rest : '';
-    const ev = H.ev.get(id);
-    if (!ev) { skip.push(`${id}: không có trong dữ liệu sát hạch`); continue; }
-    if (ev.status === 'DAT') { skip.push(`${id} ${ev.name}: đã đạt`); continue; }
-    { const w = withdrawnOf(id); if (w) { skip.push(`${id} ${ev.name}: đã rút hồ sơ ngày ${fd(w.date)}`); continue; } }
-    const cur = activeReg(id); if (cur) { skip.push(`${id} ${ev.name}: đang nằm trong ${regWhere(cur)}`); continue; }
-    { const e2 = evalFor(id, $('#tlBulkExam').value); if (e2.uncertain && e2.uncertain.length) { skip.push(`${id} ${ev.name}: không rõ ngày đạt gốc phần ${e2.uncertain.join(', ')} → đăng ký từng người ở Quầy để đối chiếu`); continue; } }
-    const r = makeRetake(id, $('#tlBulkReg').value, $('#tlBulkExam').value, '', phone); if (!r) { skip.push(`${id} ${ev.name}: ${makeRetake.full ? 'đợt đã đủ số lượng giới hạn' : 'không cần thi lại tại đợt này'}`); continue; } ok++; sum += regTotals(r).due;
-  }
-  if (ok) { logA('Đăng ký theo danh sách', '', '', `${ok} người · đợt ${fd($('#tlBulkExam').value)} · phải thu ${money(sum)}`); save(); } renderAll();
-  $('#tlBulkMsg').innerHTML = `<div class="alert ${skip.length?'':'ok'}">Đã đăng ký ${ok} người, tổng phải thu ${money(sum)} đ (chưa thu).${skip.length?`<br>Bỏ qua ${skip.length}:<br>`+skip.slice(0,30).map(esc).join('<br>'):''}</div>`;
-  if (ok) $('#tlBulk').value = '';
-  if (ok) capNotice($('#tlBulkExam').value); else if (capOf($('#tlBulkExam').value).full) capBlock($('#tlBulkExam').value, 1);
-};
+$('#tlBulkGo').onclick = () => bulkCheck();
 $('#tlExportForm').onclick = () => exportTLForm();
 $('#tlExport').onclick = () => {
   const dotV = $('#tlDot').value, dl = dotV && dotV !== '*' ? dotLabel(dotV) : 'tất cả các đợt';

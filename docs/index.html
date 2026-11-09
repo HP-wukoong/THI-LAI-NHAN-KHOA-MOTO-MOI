@@ -109,7 +109,10 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 #hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
 #hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
 @media print{.hint,#hintPop{display:none!important}}
-.tl-head{position:sticky;top:var(--tbH,60px);z-index:4;background:var(--bg);padding-top:2px;margin-top:-2px}
+.bk-assign{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--bg))}
+.bk-tw{max-height:62vh;overflow:auto} .bk-tw th{z-index:2}
+.bk-in{padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--ink);font:inherit;font-size:13px} .bk-in.num{text-align:right;font-family:var(--mono)}
+.tl-head{position:relative}
 html.hasbg .tl-head{background:transparent}
 .tl-head > .panel{margin-bottom:10px}
 .tl-listp{padding:8px}
@@ -332,16 +335,18 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     <button type="button" class="tl-arr l" id="tlArrL" aria-label="Kéo sang trái" title="Xem cột bên trái">‹</button><button type="button" class="tl-arr r" id="tlArrR" aria-label="Kéo sang phải" title="Xem cột bên phải">›</button></div>
     <div class="small muted tl-tip">Cuộn chuột trong bảng để xem danh sách (phần trên đứng yên) · <b>Shift + cuộn chuột</b> hoặc bấm ‹ › để xem cột bị ẩn · cột chọn, STT, họ tên luôn cố định bên trái</div></div>
   <div class="panel">
-    <h2>Đăng ký nhanh nhiều người</h2>
-    <p class="small muted">Dán danh sách CCCD (mỗi dòng một người, dán cả cột từ Excel cũng được; có SĐT ở cùng dòng thì tool lấy luôn). Tool tự tính phần thi lại và tiền theo quy tắc, bỏ qua người đã đạt hoặc đã đăng ký.</p>
+    <h2 id="bkTitle">Đăng ký hàng loạt theo CCCD</h2>
+    <p class="small muted">Copy vùng dữ liệu trong Excel (cột CCCD bắt buộc; có thêm Họ tên, SĐT / người nhận, Số tiền, Ngày ĐK thì tool lấy luôn; có hay không có dòng tiêu đề đều được) rồi dán vào ô dưới, hoặc chọn file Excel, hoặc quét QR CCCD liên tục. Bấm <b>Kiểm tra danh sách</b> để xem trước từng dòng — <b>chưa đăng ký ai</b> cho tới khi bấm xác nhận.</p>
     <div class="row">
-      <textarea id="tlBulk" rows="5" style="flex:1;min-width:240px;font-family:var(--mono)" placeholder="052000000001&#10;052000000002  0900000000"></textarea>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <label class="f">Ngày đăng ký<input type="date" id="tlBulkReg"></label>
+      <textarea id="tlBulk" rows="6" style="flex:1;min-width:240px;font-family:var(--mono)" placeholder="052000000001&#9;NGUYỄN VĂN A&#9;0900000000&#9;295000&#10;052000000002&#9;TRẦN THỊ B&#9;KIỆT"></textarea>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:200px">
         <label class="f">Đợt thi<select id="tlBulkExam"></select></label>
-        <button class="b p" id="tlBulkGo">Đăng ký</button>
+        <label class="f">Ngày đăng ký<input type="date" id="tlBulkReg"></label>
+        <div class="row" style="gap:6px"><label class="b" style="cursor:pointer;flex:1;text-align:center">Chọn file Excel…<input type="file" id="bkFile" accept=".xlsx,.xls,.csv" hidden></label><button type="button" class="b" id="bkClear" title="Xoá ô dán và bảng kiểm tra">Xoá</button></div>
+        <button class="b p" id="tlBulkGo">Kiểm tra danh sách →</button>
       </div>
     </div>
+    <div id="bkOut"></div>
     <div id="tlBulkMsg" class="small" style="margin-top:6px"></div>
   </div>
 </section>
@@ -4543,8 +4548,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.5', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.10.0', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.10.0', '09/11/2026', ['Đăng ký hàng loạt theo CCCD làm lại: dán từ Excel / chọn file / quét QR → bảng kiểm tra trước từng dòng (xanh: đăng ký được, vàng: cần xem lại, đỏ: bỏ qua kèm lý do) → xác nhận', 'Kiểm tra CCCD: đủ 12 số, mã tỉnh, mã thế kỷ, năm sinh khớp dữ liệu, họ tên khớp, trùng dòng trong danh sách, đã đạt / đã rút / đang có đăng ký, giới hạn đợt', 'Gán hàng loạt SĐT / người nhận và tiền nộp (chưa nộp, nộp đủ, theo cột tiền, số tiền cố định), sửa từng dòng; ghi thu tiền mặt / chuyển khoản luôn', 'Xuất file kết quả: danh sách đã đăng ký và danh sách bỏ qua kèm lý do']],
   ['3.9.5', '09/11/2026', ['Khung số lượng ở Quầy: đợt đã qua ngày sát hạch tự ẩn; danh sách đợt có thanh trượt riêng khi nhiều khóa (phần tổng ở trên đứng yên)']],
   ['3.9.4', '09/11/2026', ['Đăng ký thi lại: thêm bộ lọc “SĐT / người nhận”: số trùng nhau, ghi tên người nhận thay số (từng tên kèm số người), có số, để trống; bấm vào SĐT trong bảng để lọc nhanh những người cùng số / cùng người nhận']],
   ['3.9.3', '09/11/2026', ['Đăng ký thi lại: phần số liệu + bộ lọc + tiêu đề bảng đứng yên khi kéo danh sách (bảng cuộn trong khung vừa màn hình)', 'Thanh trượt ngang luôn ở cuối màn hình, nút ‹ › hai bên để xem cột bị ẩn, Shift + cuộn chuột; cột chọn, STT, họ tên cố định bên trái']],
@@ -4782,25 +4788,7 @@ $('#tlBulkDel').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=
     for (const r of list) { const pays = S.pays.filter(p=>p.regId===r.id); S.trash.push({ id: uid(), type: 'reg', at: new Date().toISOString(), reg: r, pays }); }
     logA('Xoá hàng loạt', '', '', `${list.length} đăng ký: ${list.map(r=>r.name).join(', ').slice(0,300)}`); const ids = new Set(list.map(r=>r.id)); S.regs = S.regs.filter(r=>!ids.has(r.id)); S.pays = S.pays.filter(p=>!ids.has(p.regId)); tlSel.clear(); refresh(); toast('Đã xoá ' + list.length + ' đăng ký'); }, 'Xoá'); };
 $('#tlBulkReg').value = todayISO();
-$('#tlBulkGo').onclick = () => {
-  if (!$('#tlBulkExam').value) return blockMsg('Chưa có đợt thi', '<p>Thêm ngày sát hạch dự kiến ở tab <b>Đợt thi</b> trước.</p>');
-  const lines = $('#tlBulk').value.split(/\n/); let ok = 0, sum = 0; const skip = [];
-  for (const line of lines) {
-    const nums = line.split(/\D+/).filter(x=>x.length>=9); if (!nums.length) continue; const idRaw = nums.find(x=>x.length===12||x.length===11); if (!idRaw) { skip.push(line.trim()+': không thấy CCCD'); continue; }
-    const id = C.normCCCD(idRaw).id, rest = line.replace(idRaw, '').replace(/\D/g, ''), phone = rest.length >= 9 && rest.length <= 11 ? rest : '';
-    const ev = H.ev.get(id);
-    if (!ev) { skip.push(`${id}: không có trong dữ liệu sát hạch`); continue; }
-    if (ev.status === 'DAT') { skip.push(`${id} ${ev.name}: đã đạt`); continue; }
-    { const w = withdrawnOf(id); if (w) { skip.push(`${id} ${ev.name}: đã rút hồ sơ ngày ${fd(w.date)}`); continue; } }
-    const cur = activeReg(id); if (cur) { skip.push(`${id} ${ev.name}: đang nằm trong ${regWhere(cur)}`); continue; }
-    { const e2 = evalFor(id, $('#tlBulkExam').value); if (e2.uncertain && e2.uncertain.length) { skip.push(`${id} ${ev.name}: không rõ ngày đạt gốc phần ${e2.uncertain.join(', ')} → đăng ký từng người ở Quầy để đối chiếu`); continue; } }
-    const r = makeRetake(id, $('#tlBulkReg').value, $('#tlBulkExam').value, '', phone); if (!r) { skip.push(`${id} ${ev.name}: ${makeRetake.full ? 'đợt đã đủ số lượng giới hạn' : 'không cần thi lại tại đợt này'}`); continue; } ok++; sum += regTotals(r).due;
-  }
-  if (ok) { logA('Đăng ký theo danh sách', '', '', `${ok} người · đợt ${fd($('#tlBulkExam').value)} · phải thu ${money(sum)}`); save(); } renderAll();
-  $('#tlBulkMsg').innerHTML = `<div class="alert ${skip.length?'':'ok'}">Đã đăng ký ${ok} người, tổng phải thu ${money(sum)} đ (chưa thu).${skip.length?`<br>Bỏ qua ${skip.length}:<br>`+skip.slice(0,30).map(esc).join('<br>'):''}</div>`;
-  if (ok) $('#tlBulk').value = '';
-  if (ok) capNotice($('#tlBulkExam').value); else if (capOf($('#tlBulkExam').value).full) capBlock($('#tlBulkExam').value, 1);
-};
+$('#tlBulkGo').onclick = () => bulkCheck();
 $('#tlExportForm').onclick = () => exportTLForm();
 $('#tlExport').onclick = () => {
   const dotV = $('#tlDot').value, dl = dotV && dotV !== '*' ? dotLabel(dotV) : 'tất cả các đợt';
@@ -7064,7 +7052,7 @@ function capBar(d){
 const PAGE_HELP = {
   home: ['Việc cần làm: nợ, ca chưa chốt quỹ, đợt chưa nạp kết quả, người trượt/vắng chưa đăng ký lại, tiền bảo lưu… bấm vào từng dòng để đi tới nơi xử lý.', 'Đợt thi sắp tới, tiền thu hôm nay, tình trạng lưu trữ.'],
   quay: ['Gõ CCCD / họ tên rồi Enter, hoặc quét QR trên CCCD gắn chip.', 'Bên trái: hạn bảo lưu từng phần, lịch sử thi. Bên phải: phần phải thi lại, lệ phí, đăng ký, thu tiền, in phiếu, giấy hẹn, trừ tiền bảo lưu.', 'Khung bên phải màn hình: số lượng đăng ký từng đợt (tổng, lại LT, lại Hình, lại LT+H), giới hạn số người; đợt vừa có người nộp tự lên đầu. Bấm thẻ đợt để mở danh sách.', 'Phím tắt: F2 tra cứu · F4 thu tiền · F8 in phiếu.'],
-  tl: ['Danh sách đăng ký thi lại theo đợt; lọc theo thanh toán, phần thi, kết quả đợt.', 'Tick nhiều dòng để: thu đủ, đổi đợt, xoá, in giấy hẹn, soạn tin nhắn.', '“Xuất DS thi lại (mẫu chuẩn)”: file gửi Hội đồng, có cột Ngày bảo lưu và cột Vắng thi gần nhất.', '“Chuyển Trượt/Vắng sang đợt mới”: đăng ký lại một lần cho cả đợt cũ.', 'Ô “Đăng ký nhanh nhiều người”: dán danh sách CCCD (+ SĐT) để đăng ký hàng loạt.'],
+  tl: ['Danh sách đăng ký thi lại theo đợt; lọc theo thanh toán, phần thi, kết quả đợt.', 'Tick nhiều dòng để: thu đủ, đổi đợt, xoá, in giấy hẹn, soạn tin nhắn.', '“Xuất DS thi lại (mẫu chuẩn)”: file gửi Hội đồng, có cột Ngày bảo lưu và cột Vắng thi gần nhất.', '“Chuyển Trượt/Vắng sang đợt mới”: đăng ký lại một lần cho cả đợt cũ.', 'Cuối trang “Đăng ký hàng loạt theo CCCD”: dán từ Excel / chọn file / quét QR → bảng kiểm tra từng dòng (xanh / vàng / đỏ kèm lý do) → gán SĐT, tiền hàng loạt → xác nhận → xuất file kết quả.'],
   mtl: ['Người chưa đạt, chưa đăng ký thi lại: lọc theo phần thi, tình trạng liên hệ, đợt mời.', 'Ghi lịch sử gọi điện / nhắn tin, soạn tin mời, xuất Excel để gọi.'],
   rut: ['Ghi nhận học viên rút hồ sơ (ngày, lý do, tiền hoàn, giấy tờ trả lại), in biên bản.', 'Người đã rút bị chặn đăng ký cho tới khi bấm “Nộp lại hồ sơ”.'],
   ds: ['Toàn bộ thí sinh trong dữ liệu kết quả: trạng thái, phần cần thi, hạn bảo lưu từng phần.', 'Lọc theo tình trạng, ngày thi lần cuối, phần cần thi; xuất Excel.'],
@@ -7087,6 +7075,7 @@ const HINTS = [
   ['#tlTransfer', 'Sau khi nạp kết quả: đăng ký lại một lần tất cả người Trượt / Vắng của đợt cũ sang đợt mới. Xem trước phần thi, lệ phí, người bị bỏ qua; tiền bảo lưu tự trừ. Kiểm tra giới hạn số người của đợt mới.'],
   ['#tlBulkHen', 'In giấy hẹn sát hạch (2 tờ / A4) cho các dòng đã tick: ngày, giờ, địa điểm, lệ phí còn nợ và QR chuyển khoản đúng số tiền.'],
   ['#tlBulkSms', 'Soạn tin nhắn hàng loạt (nhắc nộp tiền, nhắc lịch thi…), tự điền tên, số tiền, STK. Sao chép hoặc xuất Excel; “Ghi đã báo” lưu vào lịch sử liên hệ.'],
+  [['#t-tl', 'Đăng ký hàng loạt'], 'Dành cho đăng ký hộ nhiều người. Copy vùng Excel (CCCD bắt buộc; Họ tên, SĐT / người nhận, Số tiền, Ngày ĐK nếu có) dán vào ô, hoặc chọn file. Tool kiểm tra: CCCD đủ 12 số (tự thêm 0 nếu Excel làm mất), mã tỉnh, năm sinh, họ tên khớp dữ liệu, trùng dòng, đã đạt / rút / đang có đăng ký, giới hạn đợt. Dòng vàng về CCCD / tên không chọn sẵn. Gán SĐT và tiền (chưa nộp / nộp đủ / theo cột / số cố định) cho cả danh sách rồi sửa từng dòng; xác nhận mới đăng ký và ghi thu.'],
   ['#tlBulkPay', 'Ghi thu đủ số còn nợ cho tất cả dòng đã tick (cùng ngày, cùng hình thức).'],
   [['#t-thu', 'Đối chiếu sao kê'], 'Nạp file Excel sao kê tài khoản. Tool lấy các khoản tiền vào, tìm CCCD (12 số) trong nội dung chuyển khoản để ghép học viên còn nợ, ghi thu dạng chuyển khoản kèm mã giao dịch. Nạp lại cùng file không bị ghi trùng. Nút “Tải file sao kê mẫu” để tập.'],
   [['#t-thu', 'Tiền bảo lưu'], 'LT 60k và phí duyệt 50k không hoàn. Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026). Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt. Tool tự tạo khi nạp kết quả, tự trừ khi đăng ký đợt sau (phiếu BL, không vào tiền mặt). Có nút Hoàn tiền / Huỷ.'],
@@ -7249,6 +7238,203 @@ function qsFit(){ const el = $('#qSide'); if (!el || !el.offsetParent || innerWi
 { const o = renderQSide; renderQSide = function(){ const r = o.apply(this, arguments); requestAnimationFrame(qsFit); return r; }; }
 addEventListener('resize', qsFit); addEventListener('scroll', () => requestAnimationFrame(qsFit), { passive: true });
 { const o = switchTab; switchTab = function(t){ const r = o.apply(this, arguments); if (t === 'quay') requestAnimationFrame(qsFit); return r; }; }
+
+/* =====================================================================
+   ĐĂNG KÝ HÀNG LOẠT THEO CCCD: nhập (dán / file / quét QR) → kiểm tra từng dòng → gán SĐT, tiền → xác nhận
+   ===================================================================== */
+const PROV = new Set('001 002 004 006 008 010 011 012 014 015 017 019 020 022 024 025 026 027 030 031 033 034 035 036 037 038 040 042 044 045 046 048 049 051 052 054 056 058 060 062 064 066 067 068 070 072 074 075 077 079 080 082 083 084 086 087 089 091 092 093 094 095 096'.split(' '));
+let BKL = null; /* { rows, exam, reg, src } */
+const bkHdr = {
+  cccd: /cccd|cmnd|can cuoc|dinh danh|so cc|so the/, name: /ho (va )?ten|ten hoc vien|^ho ten|^ten$/, phone: /sdt|dien thoai|so dt|nguoi nhan|lien he|^dt$|nguoi dk|nguoi dang ky/,
+  amount: /so tien|tien nop|da nop|da thu|tien thu|^tien$|le phi/, date: /ngay (dang ky|dk|nop)|ngay$/
+};
+function bkCellType(v){
+  const s = C.norm(v); if (!s) return '';
+  const d = s.replace(/\D/g, ''), compact = s.replace(/[\s.\-]/g, '');
+  if (/^\d{11,12}$/.test(compact) && !/^0[35789]\d{8}$/.test(compact) && !/^84\d{9}$/.test(compact)) return 'cccd';
+  if (/^(\+?84|0)\d{9}$/.test(compact.replace(/[()]/g, ''))) return 'phone';
+  if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(s)) return 'date';
+  if (/^\d{1,3}([.,]\d{3})+(đ|d|vnd)?$/i.test(compact) || (/^\d{4,8}(đ|d)?$/i.test(compact) && +d % 1000 === 0)) return 'amount';
+  if (/[a-zA-ZÀ-ỹ]/.test(s)) return 'text';
+  return 'other';
+}
+function bkParse(table){
+  /* table: mảng các dòng, mỗi dòng mảng ô. Tìm dòng tiêu đề (nếu có) để biết cột; không có thì đoán theo nội dung ô */
+  let map = null, start = 0;
+  for (let i = 0; i < Math.min(table.length, 15); i++) {
+    const f = (table[i] || []).map(x => fold(String(x ?? '')).trim()), m = {};
+    f.forEach((h, j) => { if (!h || h.length > 40) return; for (const [k, re] of Object.entries(bkHdr)) if (m[k] == null && re.test(h)) { m[k] = j; break; } });
+    if (m.cccd != null && !(table[i] || []).some(x => bkCellType(x) === 'cccd')) { map = m; start = i + 1; break; }
+  }
+  const out = [];
+  for (let i = start; i < table.length; i++) {
+    const cells = (table[i] || []).map(x => x == null ? '' : String(x)); if (!cells.some(c => C.norm(c))) continue;
+    const row = { line: i + 1, raw: cells.map(C.norm).filter(Boolean).join(' | '), cccd: '', name: '', phone: '', amount: null, date: '' };
+    if (map) {
+      row.cccd = C.norm(cells[map.cccd]); if (map.name != null) row.name = C.norm(cells[map.name]); if (map.phone != null) row.phone = C.norm(cells[map.phone]);
+      if (map.amount != null && C.norm(cells[map.amount])) row.amount = skNum(cells[map.amount]); if (map.date != null) row.date = skDate(cells[map.date]);
+    } else {
+      const texts = [];
+      for (const c of cells) { const t = bkCellType(c), v = C.norm(c);
+        if (t === 'cccd' && !row.cccd) row.cccd = v; else if (t === 'phone' && !row.phone) row.phone = v; else if (t === 'date' && !row.date) row.date = skDate(v);
+        else if (t === 'amount' && row.amount == null) row.amount = skNum(v); else if (t === 'text') texts.push(v);
+        else if (t === 'cccd' || (t === 'other' && /\d{9,}/.test(v))) row.extraId = v; }
+      row.texts = texts;
+    }
+    if (!row.cccd && !map) { const m = row.raw.match(/(?<!\d)\d{11,12}(?!\d)/); if (m) row.cccd = m[0]; }
+    if (!row.cccd && !row.raw.match(/[a-zA-ZÀ-ỹ]{2}/) && !row.raw.match(/\d{6,}/)) continue; /* dòng trống / số thứ tự lẻ */
+    out.push(row);
+  }
+  return { rows: out, header: !!map, map };
+}
+function bkTextToTable(text){
+  return text.replace(/\r/g, '').split('\n').map(l => l.includes('\t') ? l.split('\t') : l.split(/\s{2,}|;|\s\|\s/));
+}
+/* Kiểm tra 1 dòng; trả về các thông tin để hiển thị + mức: ok / warn / bad */
+function bkCheck(row, exam, regDate, seen){
+  const notes = [], warn = [], x = Object.assign(row, { lvl: 'ok', notes, warn, idWarn: false });
+  const bad = m => { x.lvl = 'bad'; notes.push(m); return x; };
+  let id = String(row.cccd || '').replace(/\D/g, '');
+  if (!id) return bad('Không thấy số CCCD trong dòng');
+  let susp = false; if (id.length === 11) { id = '0' + id; notes.push('CCCD 11 số (Excel mất số 0 đầu) → đã thêm 0'); susp = true; }
+  if (id.length !== 12) return bad(`CCCD có ${id.length} số, phải đủ 12 số`);
+  x.id = id;
+  if (!PROV.has(id.slice(0, 3))) return bad(`Mã tỉnh “${id.slice(0, 3)}” trong CCCD không tồn tại — kiểm tra gõ nhầm`);
+  if (!'0123'.includes(id[3])) return bad(`Số thứ 4 của CCCD là “${id[3]}” (chỉ có 0–3) — kiểm tra gõ nhầm`);
+  if (seen.has(id)) return bad(`Trùng với dòng ${seen.get(id)} trong danh sách`); seen.set(id, row.line);
+  const ev = H.ev.get(id), p = H.people.get(id); if (!ev) return bad('Không có trong dữ liệu kết quả sát hạch (chưa thi lần nào / gõ sai số)');
+  x.ev = ev; x.dname = ev.name;
+  /* năm sinh trong CCCD (số 4 = thế kỷ, số 5–6 = năm) phải khớp ngày sinh trong dữ liệu */
+  const yr = (+id[3] < 2 ? 1900 : 2000) + +id.slice(4, 6), dob = String((p && p.dob) || ''), dy = (dob.match(/(19|20)\d{2}/) || [])[0];
+  if (dy && +dy !== yr) { warn.push(yr > +todayISO().slice(0, 4) ? `Số CCCD cho năm sinh ${yr} (không hợp lý), dữ liệu ghi ${dobText(dob)} — kiểm tra lại số CCCD` : `Năm sinh theo CCCD ${yr} ≠ ngày sinh trong dữ liệu ${dobText(dob)}`); susp = true; }
+  /* họ tên: lấy từ cột tên, hoặc ô chữ khớp tên; ô chữ còn lại coi là người nhận */
+  if (row.texts) { const t = row.texts, hit = t.find(s => fold(s) === fold(ev.name)); if (hit) { row.name = hit; const o = t.filter(s => s !== hit); if (!row.phone && o.length) row.phone = o[0]; }
+    else if (t.length) { const nm = t.find(s => s.trim().split(/\s+/).length >= 2 && s.length > 6); if (nm) { row.name = nm; const o = t.filter(s => s !== nm); if (!row.phone && o.length) row.phone = o[0]; } else if (!row.phone) row.phone = t[0]; } }
+  const nameOk = row.name && fold(row.name).replace(/\s+/g, ' ') === fold(ev.name).replace(/\s+/g, ' ');
+  if (row.name && !nameOk) { warn.push(`Tên trong danh sách “${row.name}” khác tên trong dữ liệu`); x.idWarn = true; }
+  else if (susp && !nameOk) { warn.push('Danh sách không ghi họ tên để đối chiếu — kiểm tra đúng người'); x.idWarn = true; } /* CCCD đã sửa / năm sinh lệch mà tên khớp thì vẫn chọn sẵn */
+  if (ev.status === 'DAT') return bad('Đã đạt, không cần thi lại');
+  { const w = withdrawnOf(id); if (w) return bad(`Đã rút hồ sơ ngày ${fd(w.date)}`); }
+  { const cur = activeReg(id); if (cur) return bad(`Đã có đăng ký ở ${regWhere(cur)}`); }
+  const e2 = evalFor(id, exam);
+  if (e2.status === 'DAT') return bad('Tại đợt này không cần thi lại (còn bảo lưu)');
+  if (e2.uncertain && e2.uncertain.length) return bad(`Không rõ ngày đạt gốc phần ${e2.uncertain.join(', ')} → đăng ký từng người ở Quầy để đối chiếu`);
+  const f = C.fee(e2, S.cfg, row.date || regDate);
+  x.need = e2.need; x.fee = f.total; x.items = f.items;
+  x.credit = creditsOf(id).reduce((a, c) => a + Object.keys(c.items).filter(k => f.items[k]).reduce((s2, k) => s2 + Math.min(creditLeft(c, k), f.items[k]), 0), 0);
+  x.due = f.total - x.credit;
+  if (x.credit) notes.push(`Trừ tiền bảo lưu ${money(x.credit)}`);
+  if (row.date && row.date > todayISO()) { warn.push('Ngày đăng ký trong danh sách sau hôm nay → dùng hôm nay'); row.date = todayISO(); }
+  if (warn.length) x.lvl = 'warn';
+  return x;
+}
+function bkLoad(table, src){
+  const exam = $('#tlBulkExam').value, regDate = $('#tlBulkReg').value || todayISO();
+  if (!exam) return blockMsg('Chưa có đợt thi', '<p>Thêm ngày sát hạch dự kiến ở tab <b>Đợt thi</b> trước.</p>');
+  if (!H.people.size) return blockMsg('Chưa có dữ liệu sát hạch', '<p>Nạp file kết quả sát hạch ở tab Dữ liệu &amp; cài đặt trước.</p>');
+  const pr = bkParse(table); if (!pr.rows.length) return blockMsg('Không đọc được dòng nào', '<p>Kiểm tra lại: mỗi dòng phải có số CCCD 12 số.</p>');
+  const seen = new Map(); pr.rows.forEach(r => bkCheck(r, exam, regDate, seen));
+  for (const r of pr.rows) { r.on = r.lvl === 'ok' || (r.lvl === 'warn' && !r.idWarn); r.pay = r.amount != null ? Math.max(0, Math.round(r.amount)) : 0; r.ph = r.phone || ''; }
+  BKL = { rows: pr.rows, exam, regDate, src, header: pr.header, payMode: pr.rows.some(r => r.amount != null) ? 'col' : 'none' };
+  logA('Kiểm tra danh sách đăng ký hàng loạt', '', '', `${src} · ${pr.rows.length} dòng · đợt ${fd(exam)}`);
+  bkRender(); $('#bkOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+window.bulkCheck = () => { const t = $('#tlBulk').value; if (!C.norm(t)) return toast('Dán danh sách vào ô trước (hoặc chọn file Excel)'); bkLoad(bkTextToTable(t), 'dán ' + t.split('\n').filter(l => l.trim()).length + ' dòng'); };
+$('#bkFile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  const wb = XLSX.read(await f.arrayBuffer(), { type: 'array', raw: false });
+  let best = null; for (const n of wb.SheetNames) { const t = XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: false, defval: '' }); const k = t.filter(r => r.some(c => /(?<!\d)\d{11,12}(?!\d)/.test(String(c).replace(/[\s.]/g, '')))).length; if (!best || k > best.k) best = { n, t, k }; }
+  bkLoad(best.t, `file ${f.name} (sheet ${best.n})`); };
+$('#bkClear').onclick = () => { $('#tlBulk').value = ''; BKL = null; $('#bkOut').innerHTML = ''; };
+function bkCap(){ /* dòng được chọn vượt số chỗ còn lại của đợt → đánh dấu */
+  const c = capOf(BKL.exam); let left = c.lim ? c.left : Infinity;
+  for (const r of BKL.rows) { r.over = false; if (r.lvl === 'bad' || !r.on) continue; if (left <= 0) { r.over = true; } else left--; }
+}
+function bkRender(){
+  const el = $('#bkOut'); if (!BKL) { el.innerHTML = ''; return; } bkCap();
+  const R = BKL.rows, sel = R.filter(r => r.on && r.lvl !== 'bad' && !r.over), cnt = l => R.filter(r => r.lvl === l).length, c = capOf(BKL.exam), b = bankCfg();
+  const sumDue = sel.reduce((a, r) => a + r.due, 0), sumPay = sel.reduce((a, r) => a + Math.min(r.pay, r.due), 0);
+  const col = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--bad)' };
+  el.innerHTML = `<div class="bk-wrap">
+   <div class="row" style="align-items:baseline;gap:14px;margin:10px 0 6px"><b style="font-size:15px">Kiểm tra trước khi đăng ký · đợt ${esc(dotLabel(BKL.exam))}</b><span class="small muted">${esc(BKL.src)}${BKL.header ? ' · có dòng tiêu đề' : ''} · ngày ĐK ${fd(BKL.regDate)}</span></div>
+   <div class="kpis" style="margin:4px 0 8px"><div class="kpi ok"><span>Đăng ký được</span><b>${cnt('ok')}</b></div><div class="kpi warn"><span>Cần xem lại</span><b>${cnt('warn')}</b></div><div class="kpi bad"><span>Bỏ qua</span><b>${cnt('bad')}</b></div><div class="kpi"><span>Đang chọn</span><b>${sel.length}${c.lim ? `<span class="small muted"> / còn ${c.left} chỗ</span>` : ''}</b></div><div class="kpi"><span>Phải thu · sẽ ghi thu</span><b style="font-size:15px">${money(sumDue)} · ${money(sumPay)}</b></div></div>
+   <div class="bk-assign">
+     <div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="min-width:200px">SĐT / người nhận cho cả danh sách<input id="bkPh" placeholder="vd: KIỆT hoặc 0900000000"></label>
+       <label class="f">Áp dụng<select id="bkPhMode"><option value="empty">Chỉ dòng còn trống</option><option value="all">Ghi đè tất cả dòng đang chọn</option></select></label><button type="button" class="b s p" id="bkPhGo">Gán SĐT</button></div>
+     <div class="row" style="gap:8px;align-items:flex-end"><label class="f">Tiền nộp<select id="bkPayMode"><option value="none">Chưa nộp (đăng ký trước, thu sau)</option><option value="full">Nộp đủ lệ phí tại chỗ</option><option value="col"${R.some(r => r.amount != null) ? '' : ' disabled'}>Theo cột số tiền trong danh sách</option><option value="fixed">Mỗi người nộp số tiền…</option></select></label>
+       <label class="f" id="bkFixL" hidden>Số tiền mỗi người<input id="bkFix" inputmode="numeric" placeholder="vd: 110000"></label><button type="button" class="b s p" id="bkPayGo">Gán tiền cho dòng đang chọn</button>
+       ${methodHtml('bk')}</div>
+   </div>
+   <div class="row small" style="gap:10px;margin:6px 0"><button type="button" class="b s" data-bks="ok">Chọn tất cả dòng xanh</button><button type="button" class="b s" data-bks="warn">+ chọn dòng vàng</button><button type="button" class="b s" data-bks="none">Bỏ chọn hết</button><span class="muted">Dòng vàng có cảnh báo về CCCD / tên chưa được chọn sẵn — kiểm tra rồi tick nếu đúng người.</span></div>
+   <div class="tw bk-tw"><table><tr><th></th><th class="num">Dòng</th><th>CCCD</th><th>Họ tên (dữ liệu)</th><th>Thi lại</th><th class="num">Lệ phí</th><th>SĐT / người nhận</th><th class="num">Tiền nộp</th><th class="num">Còn nợ</th><th>Kiểm tra</th></tr>
+   ${R.map((r, i) => `<tr style="box-shadow:inset 4px 0 0 ${r.over ? col.bad : col[r.lvl]}" class="${r.lvl === 'bad' ? 'kdel' : ''}">
+     <td>${r.lvl === 'bad' ? '' : `<input type="checkbox" data-bki="${i}" ${r.on ? 'checked' : ''} aria-label="Chọn dòng ${r.line}">`}</td><td class="num">${r.line}</td>
+     <td class="mono">${esc(r.id || r.cccd || '—')}</td><td>${r.dname ? esc(r.dname) : '<span class="muted">' + esc(r.name || '') + '</span>'}${r.name && r.dname && fold(r.name) !== fold(r.dname) ? `<div class="small r-T">DS ghi: ${esc(r.name)}</div>` : ''}</td>
+     <td>${r.need ? ndLabel(r.need) : ''}</td><td class="num">${r.due != null ? money(r.due) : ''}</td>
+     <td>${r.lvl === 'bad' ? esc(r.ph) : `<input class="bk-in" data-bkph="${i}" value="${esc(r.ph)}" style="width:130px">`}</td>
+     <td class="num">${r.lvl === 'bad' ? '' : `<input class="bk-in num" data-bkpay="${i}" inputmode="numeric" value="${r.pay ? money(r.pay) : ''}" placeholder="0" style="width:96px">`}</td>
+     <td class="num ${r.due - Math.min(r.pay, r.due) > 0 ? 'r-T' : ''}">${r.due != null ? money(r.due - Math.min(r.pay, r.due)) : ''}</td>
+     <td class="small" style="white-space:normal;min-width:240px">${r.over ? `<b class="r-T">Vượt giới hạn đợt (${c.lim} người)</b><br>` : ''}${r.notes.map(n => r.lvl === 'bad' ? `<b class="r-T">${esc(n)}</b>` : esc(n)).join('<br>')}${r.warn.length ? `<div style="color:#9a6700">⚠ ${r.warn.map(esc).join('<br>⚠ ')}</div>` : ''}${r.pay > (r.due ?? 0) && r.lvl !== 'bad' ? `<div style="color:#9a6700">⚠ Nộp ${money(r.pay)} > lệ phí: chỉ ghi ${money(r.due)}</div>` : ''}${r.lvl === 'ok' && !r.notes.length && !r.over ? '<span class="r-D">Hợp lệ</span>' : ''}</td></tr>`).join('')}</table></div>
+   <div class="row" style="margin-top:10px;gap:10px"><button type="button" class="b p" id="bkGo"${sel.length ? '' : ' disabled'}>Đăng ký ${sel.length} người đã chọn${sumPay ? ` · ghi thu ${money(sumPay)} đ` : ''}</button><button type="button" class="b" id="bkExp">Xuất bảng kiểm tra (Excel)</button><button type="button" class="b" id="bkCancel">Huỷ</button>
+     <span class="small muted">${sumPay && ($('#bkMt') || {}).value === 'CK' ? 'Chuyển khoản: ghi mã giao dịch chung ở ô bên trên.' : ''}</span></div></div>`;
+  if (BKL.ph) $('#bkPh').value = BKL.ph; $('#bkPayMode').value = BKL.payMode; $('#bkFixL').hidden = BKL.payMode !== 'fixed'; if (BKL.fix) $('#bkFix').value = BKL.fix;
+  if (BKL.mt) { $('#bkMt').value = BKL.mt; $('#bkTxL').hidden = BKL.mt !== 'CK'; $('#bkTx').value = BKL.tx || ''; }
+}
+const bkMoney = v => Math.max(0, Math.round(skNum(v) || 0));
+$('#bkOut').addEventListener('change', e => { if (!BKL) return; const t = e.target;
+  if (t.dataset.bki != null) { BKL.rows[+t.dataset.bki].on = t.checked; bkRender(); }
+  else if (t.dataset.bkph != null) { BKL.rows[+t.dataset.bkph].ph = C.norm(t.value); }
+  else if (t.dataset.bkpay != null) { BKL.rows[+t.dataset.bkpay].pay = bkMoney(t.value); bkRender(); }
+  else if (t.id === 'bkPayMode') { BKL.payMode = t.value; $('#bkFixL').hidden = t.value !== 'fixed'; }
+  else if (t.id === 'bkMt' || t.id === 'bkTx') { BKL.mt = $('#bkMt').value; BKL.tx = $('#bkTx').value; }
+});
+$('#bkOut').addEventListener('input', e => { if (!BKL) return; const t = e.target; if (t.id === 'bkPh') BKL.ph = t.value; if (t.id === 'bkFix') BKL.fix = t.value; if (t.id === 'bkTx') BKL.tx = t.value; if (t.dataset.bkph != null) BKL.rows[+t.dataset.bkph].ph = C.norm(t.value); });
+$('#bkOut').addEventListener('click', e => { if (!BKL) return; const b = e.target.closest('button'); if (!b) return;
+  const live = () => BKL.rows.filter(r => r.lvl !== 'bad' && r.on);
+  if (b.dataset.bks) { for (const r of BKL.rows) if (r.lvl !== 'bad') r.on = b.dataset.bks === 'none' ? false : b.dataset.bks === 'ok' ? r.lvl === 'ok' : (r.on || r.lvl === 'warn' || r.lvl === 'ok'); bkRender(); }
+  else if (b.id === 'bkPhGo') { const v = C.norm($('#bkPh').value); if (!v) return toast('Nhập SĐT hoặc tên người nhận'); const all = $('#bkPhMode').value === 'all'; let n = 0;
+    for (const r of live()) if (all || !r.ph) { r.ph = v; n++; } bkRender(); toast(`Đã gán “${v}” cho ${n} dòng`); }
+  else if (b.id === 'bkPayGo') { const m = $('#bkPayMode').value; BKL.payMode = m; const fix = bkMoney($('#bkFix').value); if (m === 'fixed') { if (!fix) return toast('Nhập số tiền mỗi người'); BKL.fix = $('#bkFix').value; }
+    let n = 0; for (const r of live()) { r.pay = m === 'none' ? 0 : m === 'full' ? r.due : m === 'col' ? (r.amount != null ? bkMoney(r.amount) : 0) : fix; n++; } bkRender(); toast(`Đã gán tiền cho ${n} dòng`); }
+  else if (b.id === 'bkCancel') { BKL = null; bkRender(); }
+  else if (b.id === 'bkExp') bkExport();
+  else if (b.id === 'bkGo') bkCommit();
+});
+function bkCommit(){
+  const sel = BKL.rows.filter(r => r.on && r.lvl !== 'bad' && !r.over); if (!sel.length) return;
+  const payN = sel.filter(r => r.pay > 0).length; let mt = { method: 'TM', txn: '' };
+  if (payN) { mt = readMethod('bk'); if (!mt) return; }
+  const go = () => {
+    const done = [], skip = []; let sumDue = 0, sumPay = 0;
+    for (const x of sel) {
+      /* kiểm tra lại ngay lúc ghi (phòng khi máy khác vừa đăng ký) */
+      if (activeReg(x.id)) { skip.push([x, 'Vừa có đăng ký khác']); continue; }
+      const r = makeRetake(x.id, x.date || BKL.regDate, BKL.exam, 'Đăng ký hàng loạt' + (BKL.src ? ' · ' + BKL.src : ''), x.ph, '');
+      if (!r) { skip.push([x, makeRetake.full ? 'Đợt đã đủ số lượng giới hạn' : 'Không cần thi lại tại đợt này']); continue; }
+      let p = null; const amt = Math.min(x.pay || 0, regTotals(r).left);
+      if (amt > 0) p = addPay({ regId: r.id, cccd: r.cccd, date: todayISO(), amount: amt, method: mt.method, txn: mt.txn, note: 'Thu khi đăng ký hàng loạt' });
+      const t = regTotals(r); sumDue += cashTotals(r).due; sumPay += amt; done.push({ x, r, p, t });
+    }
+    logA('Đăng ký hàng loạt', '', '', `${done.length} người · đợt ${fd(BKL.exam)} · phải thu ${money(sumDue)} · đã thu ${money(sumPay)}${payN ? ' (' + PM[mt.method] + (mt.txn ? ' ' + mt.txn : '') + ')' : ''}${skip.length ? ` · bỏ qua lúc ghi ${skip.length}` : ''}`);
+    save(); renderAll();
+    const bad = BKL.rows.filter(r => r.lvl === 'bad' || r.over || !r.on).map(r => [r, r.over ? 'Vượt giới hạn đợt' : r.lvl === 'bad' ? r.notes.join('; ') : 'Không chọn (' + (r.warn.join('; ') || 'bỏ tick') + ')']).concat(skip);
+    BKL.result = { done, bad, sumDue, sumPay };
+    $('#bkOut').innerHTML = `<div class="alert ok" style="margin-top:10px"><b>Đã đăng ký ${done.length} người</b> vào đợt ${esc(dotLabel(BKL.exam))} · phải thu ${money(sumDue)} đ · đã ghi thu ${money(sumPay)} đ · còn nợ ${money(sumDue - sumPay)} đ.${bad.length ? `<br>Không đăng ký: ${bad.length} dòng (xem trong file kết quả).` : ''}</div>
+      <div class="row" style="margin-top:8px"><button type="button" class="b p" id="bkRes">Xuất file kết quả (Excel)</button><button type="button" class="b" id="bkNew">Nhập danh sách khác</button><button type="button" class="b" onclick="switchTab('tl');$('#tlDot').value='${BKL.exam}';renderTL()">Xem danh sách đợt</button></div>`;
+    $('#bkRes').onclick = bkResultExport; $('#bkNew').onclick = () => { $('#tlBulk').value = ''; BKL = null; bkRender(); $('#tlBulk').focus(); };
+    $('#tlBulk').value = ''; toast(`Đã đăng ký ${done.length} người`); capNotice(BKL.exam);
+  };
+  const label = `Đăng ký hàng loạt ${sel.length} người${payN ? `, ghi thu ${payN} người` : ''}`;
+  guardStorage(label, go);
+}
+function bkExport(){
+  exportXlsx(`KIEM_TRA_DS_DANG_KY_${todayISO()}.xlsx`, [['Kiem tra', BKL.rows.map(r => ({ 'Dòng': r.line, 'CCCD': r.id || r.cccd || '', 'Họ tên (dữ liệu)': r.dname || '', 'Họ tên (danh sách)': r.name || '', 'Thi lại': r.need ? ndLabel(r.need) : '', 'Lệ phí': r.due ?? '', 'SĐT / người nhận': r.ph || '', 'Tiền nộp': r.pay || '', 'Kết quả kiểm tra': r.over ? 'BỎ QUA: vượt giới hạn đợt' : r.lvl === 'bad' ? 'BỎ QUA: ' + r.notes.join('; ') : r.lvl === 'warn' ? 'XEM LẠI: ' + r.warn.join('; ') : 'Hợp lệ', 'Chọn': r.on && r.lvl !== 'bad' && !r.over ? 'x' : '' })), { title: `Kiểm tra danh sách đăng ký hàng loạt · đợt ${dotLabel(BKL.exam)}`, wide: { 'Kết quả kiểm tra': 60 } }]]);
+}
+function bkResultExport(){
+  const R = BKL.result;
+  exportXlsx(`KET_QUA_DANG_KY_HANG_LOAT_${(BKL.exam || '').replace(/-/g, '')}_${todayISO()}.xlsx`, [
+    ['Da dang ky', R.done.map(({ x, r, p, t }, i) => ({ 'STT': i + 1, 'Họ và tên': r.name, 'CCCD': r.cccd, 'SĐT / người nhận': r.phone || '', 'Nội dung SH lại': ndLabel(r.parts), 'Lệ phí': cashTotals(r).due, 'Đã nộp': cashTotals(r).paid, 'Còn nợ': t.left, 'Số phiếu thu': p ? p.no : '', 'Hình thức': p ? PM[p.method] : '' })), { title: `Đã đăng ký thi lại đợt ${dotLabel(BKL.exam)} (${R.done.length} người)` }],
+    ['Khong dang ky', R.bad.map(([x, why], i) => ({ 'STT': i + 1, 'Dòng trong DS': x.line, 'CCCD': x.id || x.cccd || '', 'Họ tên': x.dname || x.name || '', 'Lý do': why })), { title: 'Các dòng không đăng ký', wide: { 'Lý do': 70 } }]]);
+}
 
 /* ---------------- KHOÁ THAO TÁC NHẠY CẢM ---------------- */
 for (const [k, label, role] of [['delReg','Xoá đăng ký','quanly'], ['delPay','Xoá khoản thu','quanly'], ['refundDlg','Hoàn tiền / giảm phải thu','ketoan'], ['delRut','Xoá bản ghi rút hồ sơ','quanly'], ['purgeTrash','Xoá vĩnh viễn','quanly'], ['restoreTrash','Khôi phục từ thùng rác','ketoan']]) {
