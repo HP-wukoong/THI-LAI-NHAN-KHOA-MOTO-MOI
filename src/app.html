@@ -109,6 +109,21 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 #hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
 #hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
 @media print{.hint,#hintPop{display:none!important}}
+.tl-head{position:sticky;top:var(--tbH,60px);z-index:4;background:var(--bg);padding-top:2px;margin-top:-2px}
+html.hasbg .tl-head{background:transparent}
+.tl-head > .panel{margin-bottom:10px}
+.tl-listp{padding:8px}
+.tl-box{position:relative}
+#tlTable{overflow:auto;overscroll-behavior:contain;scrollbar-width:auto;scrollbar-color:var(--muted) var(--line2)}
+#tlTable::-webkit-scrollbar{height:14px;width:12px} #tlTable::-webkit-scrollbar-thumb{background:var(--muted);border-radius:8px;border:3px solid var(--line2)} #tlTable::-webkit-scrollbar-track{background:var(--line2)}
+#tlTable th{z-index:2}
+#tlTable .frz{position:sticky;z-index:1;background:var(--panel)} #tlTable th.frz{z-index:3}
+#tlTable .frz-last{box-shadow:6px 0 6px -4px rgba(0,0,0,.18)}
+#tlTable tr.bad-row .frz{background:color-mix(in srgb,var(--bad) 6%,var(--panel))}
+.tl-arr{position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:34px;height:64px;border:1px solid var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,transparent);color:var(--ink);font:700 26px/1 var(--font);cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.15);display:none}
+.tl-arr.on{display:block} .tl-arr:hover{background:var(--brand);color:#fff} .tl-arr.l{left:6px} .tl-arr.r{right:6px}
+.tl-tip{margin-top:6px}
+@media print{.tl-arr,.tl-tip{display:none!important} #tlTable{max-height:none!important;overflow:visible!important}}
 .qwrap{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start}
 .qwrap .qmain{min-width:0}
 .qside{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;padding:12px 12px 8px}
@@ -288,6 +303,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
 <!-- ============ ĐĂNG KÝ THI LẠI ============ -->
 <section class="tab" id="t-tl">
   <div id="tlAudit" hidden></div>
+  <div class="tl-head" id="tlHead">
   <div class="kpis" id="tlKpi"></div>
   <div class="panel">
     <div class="row">
@@ -308,7 +324,10 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <span style="flex:1"></span><button class="b s p" id="tlTransfer" title="Đăng ký lại cho người Trượt / Vắng của đợt đã có kết quả">Chuyển Trượt/Vắng sang đợt mới…</button>
     </div>
   </div>
-  <div class="panel"><div class="tw" id="tlTable"></div></div>
+  </div>
+  <div class="panel tl-listp"><div class="tl-box"><div class="tw" id="tlTable"></div>
+    <button type="button" class="tl-arr l" id="tlArrL" aria-label="Kéo sang trái" title="Xem cột bên trái">‹</button><button type="button" class="tl-arr r" id="tlArrR" aria-label="Kéo sang phải" title="Xem cột bên phải">›</button></div>
+    <div class="small muted tl-tip">Cuộn chuột trong bảng để xem danh sách (phần trên đứng yên) · <b>Shift + cuộn chuột</b> hoặc bấm ‹ › để xem cột bị ẩn · cột chọn, STT, họ tên luôn cố định bên trái</div></div>
   <div class="panel">
     <h2>Đăng ký nhanh nhiều người</h2>
     <p class="small muted">Dán danh sách CCCD (mỗi dòng một người, dán cả cột từ Excel cũng được; có SĐT ở cùng dòng thì tool lấy luôn). Tool tự tính phần thi lại và tiền theo quy tắc, bỏ qua người đã đạt hoặc đã đăng ký.</p>
@@ -1276,8 +1295,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.9.2', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.9.3', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.9.3', '09/11/2026', ['Đăng ký thi lại: phần số liệu + bộ lọc + tiêu đề bảng đứng yên khi kéo danh sách (bảng cuộn trong khung vừa màn hình)', 'Thanh trượt ngang luôn ở cuối màn hình, nút ‹ › hai bên để xem cột bị ẩn, Shift + cuộn chuột; cột chọn, STT, họ tên cố định bên trái']],
   ['3.9.2', '09/11/2026', ['Cột 14 DS thi lại: chỉ xét học viên có vắng hay không tại đúng ngày “Thời gian trượt” (cột 8): ghi Vắng LT / Vắng H / Vắng LT+H, có thi thì để trống']],
   ['3.9.1', '09/11/2026', ['Sửa cột “Vắng thi gần nhất” trong DS thi lại (trước để trống khi đợt chưa thi): nay ghi ngày và phần học viên vắng gần nhất trong lịch sử, kèm ghi chú nếu đợt sau đó có thi; đợt đã có kết quả thì ghi kết quả của chính đợt đó']],
   ['3.9.0', '25/10/2026', ['Ảnh nền cho tool (nút “Ảnh nền” trên thanh trên cùng): chỉnh độ phủ màu, làm mờ, khung trong suốt nhẹ, phủ kín / vừa khung; lưu riêng từng máy', 'Chống giật: ảnh tự thu nhỏ ≤1920px và nén, làm mờ và phủ màu tính sẵn một lần, lớp nền cố định riêng; máy yếu tự tắt khung trong suốt', 'Tăng tốc: mỗi thao tác (thu tiền, đăng ký…) trước đây vẽ lại cả danh sách 27.000 người mất ~1 giây, nay chỉ ~60 ms; danh sách bảo lưu chỉ vẽ khi mở tab đó và sắp xếp 1 lần']],

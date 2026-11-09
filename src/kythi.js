@@ -667,3 +667,27 @@ addEventListener('scroll', () => {
   };
   requestAnimationFrame(tick);
 }, { passive: true });
+
+/* ---------------- BẢNG ĐĂNG KÝ THI LẠI: đầu trang đứng yên, cuộn trong khung, cố định cột trái ---------------- */
+function tlLayout(){
+  const sec = $('#t-tl'), box = $('#tlTable'), head = $('#tlHead'); if (!sec || !box || !sec.classList.contains('on')) return;
+  const tb = ($('.topbar') || {}).offsetHeight || 60; document.documentElement.style.setProperty('--tbH', tb + 'px');
+  /* khung bảng cao vừa phần màn hình còn lại → thanh trượt ngang luôn thấy ở đáy màn hình */
+  const tip = ($('.tl-tip') || {}).offsetHeight || 0;
+  const top = box.getBoundingClientRect().top + scrollY; /* vị trí bảng trên trang (khi chưa cuộn trang) */
+  box.style.maxHeight = Math.max(300, innerHeight - top - tip - 26) + 'px';
+  const t = box.querySelector('table'); if (t && t.rows.length) {
+    let left = 0; const n = 3, ws = [...t.rows[0].cells].slice(0, n).map(c => c.offsetWidth);
+    for (const row of t.rows) { let l = 0; for (let i = 0; i < n; i++) { const c = row.cells[i]; if (!c) break; c.classList.add('frz'); c.classList.toggle('frz-last', i === n - 1); c.style.left = l + 'px'; l += ws[i]; } }
+  }
+  tlArrows();
+}
+function tlArrows(){ const b = $('#tlTable'); if (!b) return; const max = b.scrollWidth - b.clientWidth;
+  $('#tlArrL').classList.toggle('on', max > 4 && b.scrollLeft > 4); $('#tlArrR').classList.toggle('on', max > 4 && b.scrollLeft < max - 4); }
+{ const o = renderTL; renderTL = function(){ const r = o.apply(this, arguments); tlLayout(); return r; }; }
+$('#tlTable').addEventListener('scroll', tlArrows, { passive: true });
+const tlStep = d => { const b = $('#tlTable'); b.scrollBy({ left: d * Math.max(200, b.clientWidth * 0.6), behavior: 'smooth' }); };
+$('#tlArrL').onclick = () => tlStep(-1); $('#tlArrR').onclick = () => tlStep(1);
+addEventListener('resize', () => { clearTimeout(tlLayout.t); tlLayout.t = setTimeout(tlLayout, 120); });
+try { new ResizeObserver(() => { clearTimeout(tlLayout.t); tlLayout.t = setTimeout(tlLayout, 60); }).observe($('#tlHead')); } catch(e){}
+{ const o = switchTab; switchTab = function(t){ const r = o.apply(this, arguments); if (t === 'tl') tlLayout(); return r; }; }
