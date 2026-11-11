@@ -839,7 +839,8 @@ function bkRender(){
      <td class="small" style="white-space:normal;min-width:240px">${r.over ? `<b class="r-T">Vượt giới hạn đợt (${c.lim} người)</b><br>` : ''}${r.notes.map(n => r.lvl === 'bad' ? `<b class="r-T">${esc(n)}</b>` : esc(n)).join('<br>')}${r.warn.length ? `<div style="color:#9a6700">⚠ ${r.warn.map(esc).join('<br>⚠ ')}</div>` : ''}${r.pay > (r.due ?? 0) && r.lvl !== 'bad' ? `<div style="color:#9a6700">⚠ Nộp ${money(r.pay)} > lệ phí: chỉ ghi ${money(r.due)}</div>` : ''}${r.lvl === 'ok' && !r.notes.length && !r.over ? '<span class="r-D">Hợp lệ</span>' : ''}</td></tr>`).join('')}</table></div>
    <div class="row" style="margin-top:10px;gap:10px"><button type="button" class="b p" id="bkGo"${sel.length ? '' : ' disabled'}>Đăng ký ${sel.length} người đã chọn${sumPay ? ` · ghi thu ${money(sumPay)} đ` : ''}</button><button type="button" class="b" id="bkExp">Xuất bảng kiểm tra (Excel)</button><button type="button" class="b" id="bkCancel">Huỷ</button>
      <span class="small muted">${sumPay && ($('#bkMt') || {}).value === 'CK' ? 'Chuyển khoản: ghi mã giao dịch chung ở ô bên trên.' : ''}</span></div></div>`;
-  if (BKL.ph) $('#bkPh').value = BKL.ph; $('#bkPayMode').value = BKL.payMode; $('#bkFixL').hidden = BKL.payMode !== 'fixed'; if (BKL.fix) $('#bkFix').value = BKL.fix;
+  if (BKL.ph) $('#bkPh').value = BKL.ph; $('#bkPayMode').value = BKL.payMode;
+  attachQP($('#bkPh'), 'phone'); attachQP($('#bkFix'), 'amount'); $('#bkFixL').hidden = BKL.payMode !== 'fixed'; if (BKL.fix) $('#bkFix').value = BKL.fix;
   if (BKL.mt) { $('#bkMt').value = BKL.mt; $('#bkTxL').hidden = BKL.mt !== 'CK'; $('#bkTx').value = BKL.tx || ''; }
 }
 const bkMoney = v => Math.max(0, Math.round(skNum(v) || 0));
@@ -985,3 +986,40 @@ $('#ccExport').onclick = () => { const rows = ccRows(); if (!rows.length) return
     { title: 'Danh sách CCCD có dấu hiệu sai cần đối chiếu', wide: { 'Chi tiết': 60, 'Kết quả đối chiếu': 45 } }]]); };
 { const o = renderAll; renderAll = function(){ const r = o.apply(this, arguments); try { ccBadge(); if ((document.querySelector('section.tab.on') || {}).id === 't-cccd') renderCccd(); } catch(e){ console.warn(e); } return r; }; }
 PAGE_HELP.cccd = ['Tự động quét toàn bộ dữ liệu sát hạch và đăng ký, lọc ra mọi trường hợp CCCD có dấu hiệu sai: sai mã tỉnh, sai số thứ 4, năm sinh theo CCCD lệch / không hợp lý; một CCCD nhiều tên; cùng tên + ngày sinh nhưng 2 CCCD (nghi trùng người); đăng ký có CCCD không có trong dữ liệu; dòng kết quả bị loại vì CCCD sai.', 'Đối chiếu thẻ CCCD gốc rồi bấm “Đã đối chiếu…”, chọn kết quả, ghi chú. Số trên menu = số trường hợp chưa đối chiếu.', 'Xuất Excel để báo Hội đồng sửa một lượt.'];
+
+/* =====================================================================
+   CHỌN NHANH SĐT / NGƯỜI NHẬN VÀ SỐ TIỀN (giá trị đã nhập từ 2 lần trở lên)
+   Lấy từ chính sổ (đăng ký, phiếu thu) → không lưu thêm, đổi máy cùng thư mục dữ liệu vẫn có.
+   ===================================================================== */
+let qpCache = { k: '', ph: [], am: [] };
+function qpStats(){
+  const k = S.regs.length + '|' + S.pays.length + '|' + (S.savedAt || ''); if (qpCache.k === k) return qpCache;
+  const ph = new Map(), am = new Map();
+  for (const r of S.regs) { const v = C.norm(r.phone); if (!v) continue; const key = phoneKey(v), o = ph.get(key) || { v, n: 0, last: '' }; o.n++; const at = r.createdAt || r.regDate || ''; if (at >= o.last) { o.last = at; o.v = v; } ph.set(key, o); }
+  for (const p of S.pays) { if (!(p.amount > 0) || p.method === 'BL') continue; const o = am.get(p.amount) || { v: p.amount, n: 0, last: '' }; o.n++; if ((p.createdAt || p.date || '') >= o.last) o.last = p.createdAt || p.date || ''; am.set(p.amount, o); }
+  const pick = m => [...m.values()].filter(o => o.n >= 2).sort((a, b) => b.n - a.n || b.last.localeCompare(a.last));
+  qpCache = { k, ph: pick(ph), am: pick(am) }; return qpCache;
+}
+/* Lệ phí còn phải nộp nếu đăng ký người này vào đợt ex (đã trừ tiền bảo lưu) */
+function dueFor(id, ex, regDate){ const e2 = evalFor(id, ex); if (!e2 || e2.status === 'DAT') return 0; const f = C.fee(e2, S.cfg, regDate || todayISO());
+  const cr = creditsOf(id).reduce((a, c) => a + Object.keys(c.items).filter(k => f.items[k]).reduce((s2, k) => s2 + Math.min(creditLeft(c, k), f.items[k]), 0), 0); return Math.max(0, f.total - cr); }
+function attachQP(inp, kind, getDue, fullLabel){
+  if (!inp) return; inp.setAttribute('autocomplete', 'off'); inp.setAttribute('autocorrect', 'off');
+  let box = inp.nextElementSibling; if (!box || !box.classList.contains('qp')) { box = document.createElement('div'); box.className = 'qp'; inp.insertAdjacentElement('afterend', box); }
+  const draw = () => {
+    const st = qpStats(), html = [];
+    if (kind === 'phone') { const q = fold(inp.value).trim(), qd = inp.value.replace(/\D/g, '');
+      const list = st.ph.filter(o => !q || (qd.length >= 3 ? o.v.replace(/\D/g, '').includes(qd) : fold(o.v).includes(q))).filter(o => phoneKey(o.v) !== phoneKey(inp.value)).slice(0, 8);
+      list.forEach(o => html.push(`<button type="button" class="qp-c" data-v="${esc(o.v)}" title="Đã dùng ${o.n} lần">${esc(o.v)}<i>${o.n}</i></button>`)); }
+    else { const due = getDue ? getDue() : null, cur = toNum(inp.value);
+      if (due) html.push(`<button type="button" class="qp-c full" data-v="${due}" title="Điền đúng số còn phải nộp">${fullLabel || 'Nộp đủ'} ${money(due)}</button>`);
+      st.am.filter(o => o.v !== due).slice(0, 6).forEach(o => { const over = due != null && o.v > due;
+        html.push(`<button type="button" class="qp-c${over ? ' off' : ''}" data-v="${o.v}" ${over ? 'disabled title="Lớn hơn số phải nộp"' : `title="Đã dùng ${o.n} lần"`}>${money(o.v)}<i>${o.n}</i></button>`); });
+      if (cur) html.push(`<button type="button" class="qp-c clr" data-v="" title="Xoá số tiền (nộp sau)">✕</button>`); }
+    box.innerHTML = html.join(''); box.hidden = !html.length;
+  };
+  box.onmousedown = e => e.preventDefault(); /* không làm mất focus ô nhập */
+  box.onclick = e => { const b = e.target.closest('.qp-c'); if (!b || b.disabled) return; inp.value = kind === 'amount' && b.dataset.v ? money(+b.dataset.v) : b.dataset.v;
+    inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); draw(); };
+  inp.addEventListener('input', draw); inp.qpDraw = draw; draw();
+}

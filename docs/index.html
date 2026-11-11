@@ -109,6 +109,11 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 #hintPop{position:fixed;z-index:9999;background:var(--panel);color:var(--ink);border:1px solid var(--line);border-left:4px solid var(--warn);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:10px 12px;font-size:13px;line-height:1.5}
 #hintPop ul{margin:6px 0;padding-left:18px} #hintPop li{margin:3px 0}
 @media print{.hint,#hintPop{display:none!important}}
+.qp{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-width:340px}
+.qp-c{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border:1px solid var(--line);border-radius:999px;background:var(--panel);color:var(--ink);font:500 12px/1.6 var(--font);cursor:pointer;white-space:nowrap}
+.qp-c i{font-style:normal;font-size:10.5px;color:var(--muted);background:var(--line2);border-radius:8px;padding:0 5px}
+.qp-c:hover{border-color:var(--brand);color:var(--brand)} .qp-c.full{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
+.qp-c.off{opacity:.38;cursor:not-allowed} .qp-c.clr{padding:2px 7px;color:var(--muted)}
 .cw-ic{display:inline-block;margin-left:5px;color:var(--bad);font-weight:800;cursor:help}
 .bk-assign{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--bg))}
 .bk-tw{max-height:62vh;overflow:auto} .bk-tw th{z-index:2}
@@ -4499,6 +4504,8 @@ window.openRetake = id => {
     $('#dFee').insertAdjacentHTML('afterbegin', capLine(ex));
   };
   $('#dReg').oninput = upd; $('#dExam').onchange = upd; upd();
+  attachQP($('#dPhone'), 'phone'); attachQP($('#dPaid'), 'amount', () => dueFor(id, $('#dExam').value || defaultDot(), $('#dReg').value), 'Nộp đủ');
+  $('#dExam').addEventListener('change', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw()); $('#dReg').addEventListener('input', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw());
 };
 const getBy = () => { if (typeof SESSION !== 'undefined' && SESSION && SESSION.user) return SESSION.user.name; try { return localStorage.getItem('soA1.by') || ''; } catch(e){ return ''; } };
 window.payDlg = id => {
@@ -4537,6 +4544,7 @@ window.payDlg = id => {
   const qr = () => { const el = $('#pQr'); if (!el) return; const a = toNum($('#pAmt').value), b = bankCfg();
     el.innerHTML = a > 0 ? `<div style="width:150px;flex:none">${qrSvg(vietqr(a, payNote(r)), '150px')}</div><div class="small">Học viên quét mã để chuyển khoản <b>${money(a)} đ</b><br>${esc(bankName(b.bin))} · <span class="mono">${esc(b.acc)}</span> · ${esc(b.owner)}<br>Nội dung: <b class="mono">${esc(qrNote(payNote(r)))}</b><br><span class="muted">Nhận được tiền thì chọn “Chuyển khoản”, ghi mã giao dịch rồi bấm Ghi thu (hoặc để đối chiếu sao kê cuối ngày tự ghi).</span></div>` : ''; };
   $('#pAmt').addEventListener('input', upd); $('#pAmt').addEventListener('input', qr); upd(); qr();
+  attachQP($('#pAmt'), 'amount', () => regTotals(r).left || null, 'Thu đủ còn nợ');
   setTimeout(() => { const e = $('#pAmt'); if (e) { e.focus(); e.select(); } }, 50);
 };
 window.refundDlg = id => {
@@ -4567,8 +4575,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.11.0', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.12.0', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.12.0', '11/11/2026', ['Mở tool là vào thẳng Quầy tra cứu', 'Chọn nhanh SĐT / người nhận và số tiền: nút bấm dưới ô nhập, chỉ hiện giá trị đã dùng từ 2 lần trở lên (dùng nhiều xếp trước, gõ để lọc); ô tiền luôn có nút “Nộp đủ” đúng lệ phí còn phải nộp, số lớn hơn lệ phí bị khoá; tắt gợi ý tự nhớ của trình duyệt ở các ô này. Áp dụng ở hộp đăng ký, hộp thu tiền, đăng ký hàng loạt']],
   ['3.11.0', '09/11/2026', ['Mục mới “Sai sót CCCD”: tự động lọc mọi trường hợp số CCCD có dấu hiệu sai, một CCCD nhiều tên, nghi trùng người (cùng tên + ngày sinh, 2 số CCCD), đăng ký có CCCD không có trong dữ liệu, dòng kết quả bị loại vì CCCD sai; lọc theo loại / tình trạng / phạm vi, đánh dấu đã đối chiếu kèm ghi chú, xuất Excel; số cần xử lý hiện trên menu']],
   ['3.10.1', '09/11/2026', ['Cảnh báo số CCCD có dấu hiệu sai (mã tỉnh, mã thế kỷ, năm sinh theo CCCD lệch / không hợp lý so với ngày sinh): hiện ngay ở Quầy khi tra cứu, trong hộp đăng ký (phải tick “Đã đối chiếu CCCD gốc” mới đăng ký được), dấu ⚠ cạnh CCCD trong danh sách thi lại, ghi chú trên đăng ký và nhật ký']],
   ['3.10.0', '09/11/2026', ['Đăng ký hàng loạt theo CCCD làm lại: dán từ Excel / chọn file / quét QR → bảng kiểm tra trước từng dòng (xanh: đăng ký được, vàng: cần xem lại, đỏ: bỏ qua kèm lý do) → xác nhận', 'Kiểm tra CCCD: đủ 12 số, mã tỉnh, mã thế kỷ, năm sinh khớp dữ liệu, họ tên khớp, trùng dòng trong danh sách, đã đạt / đã rút / đang có đăng ký, giới hạn đợt', 'Gán hàng loạt SĐT / người nhận và tiền nộp (chưa nộp, nộp đủ, theo cột tiền, số tiền cố định), sửa từng dòng; ghi thu tiền mặt / chuyển khoản luôn', 'Xuất file kết quả: danh sách đã đăng ký và danh sách bỏ qua kèm lý do']],
@@ -7400,7 +7409,8 @@ function bkRender(){
      <td class="small" style="white-space:normal;min-width:240px">${r.over ? `<b class="r-T">Vượt giới hạn đợt (${c.lim} người)</b><br>` : ''}${r.notes.map(n => r.lvl === 'bad' ? `<b class="r-T">${esc(n)}</b>` : esc(n)).join('<br>')}${r.warn.length ? `<div style="color:#9a6700">⚠ ${r.warn.map(esc).join('<br>⚠ ')}</div>` : ''}${r.pay > (r.due ?? 0) && r.lvl !== 'bad' ? `<div style="color:#9a6700">⚠ Nộp ${money(r.pay)} > lệ phí: chỉ ghi ${money(r.due)}</div>` : ''}${r.lvl === 'ok' && !r.notes.length && !r.over ? '<span class="r-D">Hợp lệ</span>' : ''}</td></tr>`).join('')}</table></div>
    <div class="row" style="margin-top:10px;gap:10px"><button type="button" class="b p" id="bkGo"${sel.length ? '' : ' disabled'}>Đăng ký ${sel.length} người đã chọn${sumPay ? ` · ghi thu ${money(sumPay)} đ` : ''}</button><button type="button" class="b" id="bkExp">Xuất bảng kiểm tra (Excel)</button><button type="button" class="b" id="bkCancel">Huỷ</button>
      <span class="small muted">${sumPay && ($('#bkMt') || {}).value === 'CK' ? 'Chuyển khoản: ghi mã giao dịch chung ở ô bên trên.' : ''}</span></div></div>`;
-  if (BKL.ph) $('#bkPh').value = BKL.ph; $('#bkPayMode').value = BKL.payMode; $('#bkFixL').hidden = BKL.payMode !== 'fixed'; if (BKL.fix) $('#bkFix').value = BKL.fix;
+  if (BKL.ph) $('#bkPh').value = BKL.ph; $('#bkPayMode').value = BKL.payMode;
+  attachQP($('#bkPh'), 'phone'); attachQP($('#bkFix'), 'amount'); $('#bkFixL').hidden = BKL.payMode !== 'fixed'; if (BKL.fix) $('#bkFix').value = BKL.fix;
   if (BKL.mt) { $('#bkMt').value = BKL.mt; $('#bkTxL').hidden = BKL.mt !== 'CK'; $('#bkTx').value = BKL.tx || ''; }
 }
 const bkMoney = v => Math.max(0, Math.round(skNum(v) || 0));
@@ -7547,6 +7557,43 @@ $('#ccExport').onclick = () => { const rows = ccRows(); if (!rows.length) return
 { const o = renderAll; renderAll = function(){ const r = o.apply(this, arguments); try { ccBadge(); if ((document.querySelector('section.tab.on') || {}).id === 't-cccd') renderCccd(); } catch(e){ console.warn(e); } return r; }; }
 PAGE_HELP.cccd = ['Tự động quét toàn bộ dữ liệu sát hạch và đăng ký, lọc ra mọi trường hợp CCCD có dấu hiệu sai: sai mã tỉnh, sai số thứ 4, năm sinh theo CCCD lệch / không hợp lý; một CCCD nhiều tên; cùng tên + ngày sinh nhưng 2 CCCD (nghi trùng người); đăng ký có CCCD không có trong dữ liệu; dòng kết quả bị loại vì CCCD sai.', 'Đối chiếu thẻ CCCD gốc rồi bấm “Đã đối chiếu…”, chọn kết quả, ghi chú. Số trên menu = số trường hợp chưa đối chiếu.', 'Xuất Excel để báo Hội đồng sửa một lượt.'];
 
+/* =====================================================================
+   CHỌN NHANH SĐT / NGƯỜI NHẬN VÀ SỐ TIỀN (giá trị đã nhập từ 2 lần trở lên)
+   Lấy từ chính sổ (đăng ký, phiếu thu) → không lưu thêm, đổi máy cùng thư mục dữ liệu vẫn có.
+   ===================================================================== */
+let qpCache = { k: '', ph: [], am: [] };
+function qpStats(){
+  const k = S.regs.length + '|' + S.pays.length + '|' + (S.savedAt || ''); if (qpCache.k === k) return qpCache;
+  const ph = new Map(), am = new Map();
+  for (const r of S.regs) { const v = C.norm(r.phone); if (!v) continue; const key = phoneKey(v), o = ph.get(key) || { v, n: 0, last: '' }; o.n++; const at = r.createdAt || r.regDate || ''; if (at >= o.last) { o.last = at; o.v = v; } ph.set(key, o); }
+  for (const p of S.pays) { if (!(p.amount > 0) || p.method === 'BL') continue; const o = am.get(p.amount) || { v: p.amount, n: 0, last: '' }; o.n++; if ((p.createdAt || p.date || '') >= o.last) o.last = p.createdAt || p.date || ''; am.set(p.amount, o); }
+  const pick = m => [...m.values()].filter(o => o.n >= 2).sort((a, b) => b.n - a.n || b.last.localeCompare(a.last));
+  qpCache = { k, ph: pick(ph), am: pick(am) }; return qpCache;
+}
+/* Lệ phí còn phải nộp nếu đăng ký người này vào đợt ex (đã trừ tiền bảo lưu) */
+function dueFor(id, ex, regDate){ const e2 = evalFor(id, ex); if (!e2 || e2.status === 'DAT') return 0; const f = C.fee(e2, S.cfg, regDate || todayISO());
+  const cr = creditsOf(id).reduce((a, c) => a + Object.keys(c.items).filter(k => f.items[k]).reduce((s2, k) => s2 + Math.min(creditLeft(c, k), f.items[k]), 0), 0); return Math.max(0, f.total - cr); }
+function attachQP(inp, kind, getDue, fullLabel){
+  if (!inp) return; inp.setAttribute('autocomplete', 'off'); inp.setAttribute('autocorrect', 'off');
+  let box = inp.nextElementSibling; if (!box || !box.classList.contains('qp')) { box = document.createElement('div'); box.className = 'qp'; inp.insertAdjacentElement('afterend', box); }
+  const draw = () => {
+    const st = qpStats(), html = [];
+    if (kind === 'phone') { const q = fold(inp.value).trim(), qd = inp.value.replace(/\D/g, '');
+      const list = st.ph.filter(o => !q || (qd.length >= 3 ? o.v.replace(/\D/g, '').includes(qd) : fold(o.v).includes(q))).filter(o => phoneKey(o.v) !== phoneKey(inp.value)).slice(0, 8);
+      list.forEach(o => html.push(`<button type="button" class="qp-c" data-v="${esc(o.v)}" title="Đã dùng ${o.n} lần">${esc(o.v)}<i>${o.n}</i></button>`)); }
+    else { const due = getDue ? getDue() : null, cur = toNum(inp.value);
+      if (due) html.push(`<button type="button" class="qp-c full" data-v="${due}" title="Điền đúng số còn phải nộp">${fullLabel || 'Nộp đủ'} ${money(due)}</button>`);
+      st.am.filter(o => o.v !== due).slice(0, 6).forEach(o => { const over = due != null && o.v > due;
+        html.push(`<button type="button" class="qp-c${over ? ' off' : ''}" data-v="${o.v}" ${over ? 'disabled title="Lớn hơn số phải nộp"' : `title="Đã dùng ${o.n} lần"`}>${money(o.v)}<i>${o.n}</i></button>`); });
+      if (cur) html.push(`<button type="button" class="qp-c clr" data-v="" title="Xoá số tiền (nộp sau)">✕</button>`); }
+    box.innerHTML = html.join(''); box.hidden = !html.length;
+  };
+  box.onmousedown = e => e.preventDefault(); /* không làm mất focus ô nhập */
+  box.onclick = e => { const b = e.target.closest('.qp-c'); if (!b || b.disabled) return; inp.value = kind === 'amount' && b.dataset.v ? money(+b.dataset.v) : b.dataset.v;
+    inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); draw(); };
+  inp.addEventListener('input', draw); inp.qpDraw = draw; draw();
+}
+
 /* ---------------- KHOÁ THAO TÁC NHẠY CẢM ---------------- */
 for (const [k, label, role] of [['delReg','Xoá đăng ký','quanly'], ['delPay','Xoá khoản thu','quanly'], ['refundDlg','Hoàn tiền / giảm phải thu','ketoan'], ['delRut','Xoá bản ghi rút hồ sơ','quanly'], ['purgeTrash','Xoá vĩnh viễn','quanly'], ['restoreTrash','Khôi phục từ thùng rác','ketoan']]) {
   const f = window[k]; window[k] = (...a) => requireRole(role, label, () => f(...a));
@@ -7563,7 +7610,7 @@ for (const [id, label, ev] of [['tlBulkDel','Xoá nhiều đăng ký','onclick']
 /* ---------------- BOOT ---------------- */
 (async function boot(){
   load();
-  switchTab('home');
+  switchTab('quay');
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch(e){}
   await IDB.open();
   bgBoot();
@@ -7576,7 +7623,7 @@ for (const [id, label, ev] of [['tlBulkDel','Xoá nhiều đăng ký','onclick']
   restoreSession(); renderUser(); needLogin();
   if (H.people.size && syncCredits().length) save();
   if (S.migratedFrom && !S.migrNoted) { S.migrNoted = nowISO(); logA('Nâng cấp dữ liệu', '', '', `v${S.migratedFrom} → v${SCHEMA}: đánh số phiếu thu cho ${S.pays.filter(p => p.noByUpgrade).length} khoản cũ, hình thức mặc định tiền mặt`); save(); }
-  if (!H.people.size && !S.regs.length && !(FS.dir && FS.perm !== 'granted')) switchTab('data'); else switchTab('home');
+  if (!H.people.size && !S.regs.length && !(FS.dir && FS.perm !== 'granted')) switchTab('data'); else switchTab('quay'); /* mở tool là vào Quầy tra cứu */
   let bk = null; try { bk = localStorage.getItem('soA1.bk'); } catch(e){}
   if (S.regs.length && (!bk || bk.slice(0,10) < todayISO())) $('#bkMsg').innerHTML = '<span class="r-T">Hôm nay chưa sao lưu sổ thu.</span>';
   $('#q').focus();
