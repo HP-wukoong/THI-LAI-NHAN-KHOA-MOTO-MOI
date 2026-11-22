@@ -114,6 +114,8 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 .qp-c i{font-style:normal;font-size:10.5px;color:var(--muted);background:var(--line2);border-radius:8px;padding:0 5px}
 .qp-c:hover{border-color:var(--brand);color:var(--brand)} .qp-c.full{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
 .qp-c.off{opacity:.38;cursor:not-allowed} .qp-c.clr{padding:2px 7px;color:var(--muted)}
+.au-tg{width:28px;height:28px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;font:700 16px/1 var(--font);cursor:pointer;flex:none}
+.au-tg:hover{background:rgba(0,0,0,.06)}
 .cw-ic{display:inline-block;margin-left:5px;color:var(--bad);font-weight:800;cursor:help}
 .bk-assign{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:color-mix(in srgb,var(--panel) 92%,var(--bg))}
 .bk-tw{max-height:62vh;overflow:auto} .bk-tw th{z-index:2}
@@ -4575,8 +4577,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.12.0', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.12.1', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.12.1', '22/11/2026', ['Cảnh báo “đăng ký cần kiểm tra”: có mũi tên bung / thu gọn bảng chi tiết từng người (đang ghi, theo đúng đợt, đã thu, chênh lệch, lý do); chọn cách xử lý từng dòng hoặc các dòng đã chọn: Tính lại theo đúng đợt hoặc Giữ nguyên (ghi lý do, thôi báo)']],
   ['3.12.0', '11/11/2026', ['Mở tool là vào thẳng Quầy tra cứu', 'Chọn nhanh SĐT / người nhận và số tiền: nút bấm dưới ô nhập, chỉ hiện giá trị đã dùng từ 2 lần trở lên (dùng nhiều xếp trước, gõ để lọc); ô tiền luôn có nút “Nộp đủ” đúng lệ phí còn phải nộp, số lớn hơn lệ phí bị khoá; tắt gợi ý tự nhớ của trình duyệt ở các ô này. Áp dụng ở hộp đăng ký, hộp thu tiền, đăng ký hàng loạt']],
   ['3.11.0', '09/11/2026', ['Mục mới “Sai sót CCCD”: tự động lọc mọi trường hợp số CCCD có dấu hiệu sai, một CCCD nhiều tên, nghi trùng người (cùng tên + ngày sinh, 2 số CCCD), đăng ký có CCCD không có trong dữ liệu, dòng kết quả bị loại vì CCCD sai; lọc theo loại / tình trạng / phạm vi, đánh dấu đã đối chiếu kèm ghi chú, xuất Excel; số cần xử lý hiện trên menu']],
   ['3.10.1', '09/11/2026', ['Cảnh báo số CCCD có dấu hiệu sai (mã tỉnh, mã thế kỷ, năm sinh theo CCCD lệch / không hợp lý so với ngày sinh): hiện ngay ở Quầy khi tra cứu, trong hộp đăng ký (phải tick “Đã đối chiếu CCCD gốc” mới đăng ký được), dấu ⚠ cạnh CCCD trong danh sách thi lại, ghi chú trên đăng ký và nhật ký']],
@@ -5407,7 +5410,9 @@ function parseFeeSheet(rows){
 
 /* =============== RÀ SOÁT ĐĂNG KÝ (đúng phần thi, đúng lệ phí theo đợt) =============== */
 const sortedItems = o => JSON.stringify(Object.keys(o).sort().map(k => [k, o[k]]));
-function regIssues(r){
+/* Đã xem và chọn "Giữ nguyên" → không báo lại, trừ khi nội dung cần kiểm tra thay đổi */
+function regIssues(r){ const is = regIssuesRaw(r); return is.length && r.auditOk && r.auditOk.sig === is.join('|') ? [] : is; }
+function regIssuesRaw(r){
   if (r.kind !== 'lai' || r.cancelled || examOutcome(r).k !== 'wait') return [];
   if (!r.examDate) return ['Chưa chọn đợt thi'];
   if (!H.people.get(r.cccd)) return H.people.size ? ['Không có trong dữ liệu sát hạch đã nạp'] : [];
@@ -5424,7 +5429,7 @@ function regIssues(r){
 function fixReg(r, why){
   const ev = evalFor(r.cccd, r.examDate); if (!ev || ev.status === 'DAT') return false;
   const f = C.fee(ev, S.cfg, r.regDate), before = `${ndLabel(r.parts)} ${money(Object.values(r.items).reduce((a, b) => a + b, 0))}`;
-  r.parts = ev.need.slice(); r.items = Object.assign({}, f.items); for (const [k, v] of Object.entries(r.extra || {})) r.items[k] = (r.items[k] || 0) + v; r.rule = f.rule; r.calc = { examDate: r.examDate, need: ev.need.slice(), lastPass: ev.lastPass, expiry: ev.expiry, at: new Date().toISOString() };
+  delete r.auditOk; r.parts = ev.need.slice(); r.items = Object.assign({}, f.items); for (const [k, v] of Object.entries(r.extra || {})) r.items[k] = (r.items[k] || 0) + v; r.rule = f.rule; r.calc = { examDate: r.examDate, need: ev.need.slice(), lastPass: ev.lastPass, expiry: ev.expiry, at: new Date().toISOString() };
   logA('Tính lại theo đợt', r.cccd, r.name, `${why || ''} ${before} → ${ndLabel(r.parts)} ${money(f.total)} (đợt ${fd(r.examDate)})`.trim());
   return true;
 }
@@ -5436,14 +5441,40 @@ window.showIssues = id => { const r = S.regs.find(x => x.id === id), is = regIss
   dialog(`<h2>Cần kiểm tra · ${esc(r.name)}</h2><div class="alert bad">${is.map(esc).join('<br>')}</div><p class="small" style="margin-top:8px">${ev ? blExplain(ev, r.examDate) : ''}</p>
     <p class="small muted">Bấm “Tính lại” để cập nhật phần thi và lệ phí đúng theo đợt ${fd(r.examDate)}. Tiền đã thu giữ nguyên; nếu phải thu thêm, học viên sẽ hiện còn nợ.</p>`, () => fixRegs([id]), 'Tính lại'); };
 let tlOnlyIssues = false;
+let auditOpen = false;
 function renderAudit(){
   const list = S.regs.map(r => ({ r, is: regIssues(r) })).filter(x => x.is.length);
   const el = $('#tlAudit'); if (!el) return list;
-  el.hidden = !list.length;
-  if (list.length) el.innerHTML = `<div class="alert bad"><b>${list.length} đăng ký cần kiểm tra</b> — phần thi hoặc lệ phí không còn khớp với hạn bảo lưu tại đợt đã đăng ký (thường do đổi đợt, hoặc bảo lưu hết hạn trước ngày thi).
-    <div class="row" style="margin-top:8px"><button class="b s" onclick="tlOnlyIssues=!tlOnlyIssues;renderTL()">${tlOnlyIssues ? 'Hiện tất cả' : 'Chỉ hiện các dòng cần kiểm tra'}</button><button class="b s p" onclick="fixRegs(${esc(JSON.stringify(list.filter(x => !x.is.every(i => /Không rõ ngày đạt gốc/.test(i))).map(x => x.r.id)))})">Tính lại tất cả theo đúng đợt</button></div></div>`;
+  el.hidden = !list.length; if (!list.length) return list;
+  const fixable = list.filter(x => !x.is.every(i => /Không rõ ngày đạt gốc|Không có trong dữ liệu|Chưa chọn đợt/.test(i)));
+  const rows = list.map(({ r, is }) => {
+    const ev = evalFor(r.cccd, r.examDate), t = regTotals(r), ok = ev && ev.status !== 'DAT' && fixable.some(x => x.r === r);
+    const f = ok ? C.fee(ev, S.cfg, r.regDate) : null, extra = Object.values(r.extra || {}).reduce((a, b) => a + b, 0), newDue = f ? f.total + extra - (r.adjust || 0) : null, diff = newDue != null ? newDue - t.paid : null;
+    return `<tr><td>${ok ? `<input type="checkbox" class="auK" value="${r.id}" checked aria-label="Chọn ${esc(r.name)}">` : ''}</td>
+      <td><a href="#" data-q="${r.cccd}">${esc(r.name)}</a><div class="small muted mono">${esc(mask(r.cccd))}</div></td><td class="mono">${fd(r.examDate)}</td>
+      <td>${ndLabel(r.parts)}<div class="small mono">${money(t.due)} đ</div></td>
+      <td>${f ? `${ndLabel(ev.need)}<div class="small mono">${money(newDue)} đ</div>` : '<span class="muted">—</span>'}</td>
+      <td class="num mono">${money(t.paid)}</td>
+      <td class="num mono ${diff > 0 ? 'r-T' : diff < 0 ? 'r-D' : ''}">${diff == null ? '' : diff > 0 ? 'thu thêm ' + money(diff) : diff < 0 ? 'thừa ' + money(-diff) : 'đủ'}</td>
+      <td class="small" style="white-space:normal;min-width:260px">${is.map(esc).join('<br>')}<div class="muted">${ev ? blExplain(ev, r.examDate) : ''}</div></td>
+      <td class="act">${ok ? `<button class="b s p" onclick="fixRegs(['${r.id}'])">Tính lại</button>` : ''}<button class="b s" onclick="auditKeep(['${r.id}'])">Giữ nguyên</button></td></tr>`; }).join('');
+  el.innerHTML = `<div class="alert bad"><div class="row" style="align-items:center;gap:8px"><button type="button" class="au-tg" id="auTg" aria-expanded="${auditOpen}" title="${auditOpen ? 'Thu gọn' : 'Bung ra xem chi tiết'}">${auditOpen ? '▾' : '▸'}</button>
+    <div style="flex:1;cursor:pointer" id="auHd"><b>${list.length} đăng ký cần kiểm tra</b> — phần thi hoặc lệ phí không còn khớp với hạn bảo lưu tại đợt đã đăng ký (thường do đổi đợt, hoặc bảo lưu hết hạn trước ngày thi). <span class="small"><u>${auditOpen ? 'Thu gọn' : 'Bấm để xem chi tiết'}</u></span></div></div>
+    ${auditOpen ? `<div class="tw" style="margin-top:8px;max-height:46vh;background:var(--panel);border-radius:8px"><table><tr><th></th><th>Học viên</th><th>Đợt</th><th>Đang ghi</th><th>Theo đúng đợt</th><th class="num">Đã thu</th><th class="num">Chênh lệch</th><th>Lý do</th><th></th></tr>${rows}</table></div>
+    <p class="small" style="margin:6px 0 0"><b>Tính lại</b>: đổi phần thi và lệ phí đúng theo đợt (tiền đã thu giữ nguyên; thiếu thì hiện còn nợ, thừa thì xử lý hoàn ở Sổ thu). <b>Giữ nguyên</b>: đã kiểm tra, không đổi; dòng này thôi báo (báo lại nếu tình trạng thay đổi).</p>` : ''}
+    <div class="row" style="margin-top:8px"><button class="b s" onclick="tlOnlyIssues=!tlOnlyIssues;renderTL()">${tlOnlyIssues ? 'Hiện tất cả' : 'Chỉ hiện các dòng cần kiểm tra'}</button>
+      ${auditOpen ? `<button class="b s p" id="auFix">Tính lại các dòng đã chọn</button><button class="b s" id="auKeep">Giữ nguyên các dòng đã chọn</button>` : `<button class="b s p" onclick="fixRegs(${esc(JSON.stringify(fixable.map(x => x.r.id)))})">Tính lại tất cả theo đúng đợt</button>`}</div></div>`;
+  const tg = () => { auditOpen = !auditOpen; renderAudit(); }; $('#auTg').onclick = tg; $('#auHd').onclick = tg;
+  const sel = () => [...el.querySelectorAll('.auK:checked')].map(x => x.value);
+  if ($('#auFix')) $('#auFix').onclick = () => { const ids = sel(); if (!ids.length) return toast('Chưa chọn dòng nào'); fixRegs(ids); };
+  if ($('#auKeep')) $('#auKeep').onclick = () => { const ids = sel(); if (!ids.length) return toast('Chưa chọn dòng nào'); auditKeep(ids); };
+  el.querySelectorAll('a[data-q]').forEach(a => a.onclick = e => { e.preventDefault(); switchTab('quay'); $('#q').value = a.dataset.q; showPerson(a.dataset.q); });
   return list;
 }
+window.auditKeep = ids => requireAdmin('Giữ nguyên phần thi và lệ phí', () => dialog(`<h2>Giữ nguyên ${ids.length} đăng ký?</h2><p class="small">Phần thi và lệ phí không đổi. Các dòng này thôi báo “cần kiểm tra” (sẽ báo lại nếu dữ liệu thay đổi).</p><label class="f">Lý do giữ nguyên<input id="akWhy" placeholder="vd: Hội đồng đồng ý cho thi theo nội dung cũ"></label>`, () => {
+  const why = C.norm($('#akWhy').value); if (why.length < 3) return blockMsg('Chưa ghi lý do', '<p>Ghi ngắn lý do giữ nguyên để tra lại sau.</p>');
+  for (const id of ids) { const r = S.regs.find(x => x.id === id); if (!r) continue; const is = regIssuesRaw(r); r.auditOk = { sig: is.join('|'), at: nowISO(), by: curUser() || '', why }; logA('Giữ nguyên đăng ký cần kiểm tra', r.cccd, r.name, `${why} · ${is.join('; ')}`); }
+  save(); renderAll(); toast(`Đã giữ nguyên ${ids.length} đăng ký`); }, 'Giữ nguyên'));
 
 /* Kỳ đã thi nhưng chưa nạp kết quả → trạng thái học viên có thể đã thay đổi */
 function staleDots(){ const t = todayISO(); return (S.dots || []).filter(o => o.date < t && !dotDone(o.date) && (!H.maxDate || o.date > H.maxDate)).map(o => o.date).sort(); }
