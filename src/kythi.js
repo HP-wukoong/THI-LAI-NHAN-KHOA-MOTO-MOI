@@ -165,7 +165,7 @@ function transferPlan(from, to, kinds, regDate){
 window.transferDlg = from0 => {
   const doneDots = dotsSorted().filter(o => dotDone(o.date) && S.regs.some(r => r.kind === 'lai' && r.examDate === o.date)).map(o => o.date).reverse();
   if (!doneDots.length) return blockMsg('Chưa có đợt nào có kết quả', '<p>Nạp file kết quả sát hạch của đợt đã thi trước (Dữ liệu &amp; cài đặt).</p>');
-  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = openDot() || defaultDot();
+  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = regDot() || defaultDot();
   if (!to) return blockMsg('Chưa có đợt thi sắp tới', '<p>Thêm đợt mới ở tab Đợt thi trước.</p>');
   dialog(`<h2>Chuyển người Trượt / Vắng sang đợt mới</h2>
     <div class="row"><label class="f">Từ đợt (đã có kết quả)<select id="trFrom">${doneDots.map(d => `<option value="${d}"${d === from ? ' selected' : ''}>${esc(dotLabel(d))}</option>`).join('')}</select></label>
@@ -179,6 +179,7 @@ window.transferDlg = from0 => {
     let n = 0, sum = 0, cr = 0; const made = [];
     for (const x of plan) { const r = makeRetake(x.r.cccd, $('#trReg').value, $('#trTo').value, `Chuyển từ đợt ${fd(x.r.examDate)} (${x.o.l})`, x.r.phone || phoneOf(x.r.cccd), ''); if (!r) continue; n++; cr += r.creditApplied || 0; sum += regTotals(r).due; made.push(r); }
     setTimeout(() => capNotice($('#trTo').value), 0);
+    rememberDot($('#trTo').value);
     logA('Chuyển Trượt/Vắng sang đợt mới', '', '', `${n} người · đợt ${fd($('#trFrom').value)} → ${fd($('#trTo').value)} · phải thu ${money(sum)}${cr ? ' · trừ bảo lưu ' + money(cr) : ''}`);
     save(); renderAll();
     dialog(`<h2>Đã chuyển ${n} người sang đợt ${fd($('#trTo').value)}</h2><p>Tổng phải thu <b>${money(sum)} đ</b>${cr ? `, đã trừ tiền bảo lưu <b>${money(cr)} đ</b>` : ''}. Tất cả đang ở trạng thái chưa nộp đủ.</p><p class="small">Bước tiếp theo: gửi tin nhắn nhắc nộp tiền và lịch thi cho họ.</p>`, () => msgDlg(made.map(r => r.id), 'no'), 'Tạo tin nhắn nhắc nộp tiền');
@@ -798,6 +799,7 @@ function bkLoad(table, src){
   const pr = bkParse(table); if (!pr.rows.length) return blockMsg('Không đọc được dòng nào', '<p>Kiểm tra lại: mỗi dòng phải có số CCCD 12 số.</p>');
   const seen = new Map(); pr.rows.forEach(r => bkCheck(r, exam, regDate, seen));
   for (const r of pr.rows) { r.on = r.lvl === 'ok' || (r.lvl === 'warn' && !r.idWarn); r.pay = r.amount != null ? Math.max(0, Math.round(r.amount)) : 0; r.ph = r.phone || ''; }
+  rememberDot(exam);
   BKL = { rows: pr.rows, exam, regDate, src, header: pr.header, payMode: pr.rows.some(r => r.amount != null) ? 'col' : 'none' };
   logA('Kiểm tra danh sách đăng ký hàng loạt', '', '', `${src} · ${pr.rows.length} dòng · đợt ${fd(exam)}`);
   bkRender(); $('#bkOut').scrollIntoView({ behavior: 'smooth', block: 'start' });

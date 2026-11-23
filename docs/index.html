@@ -4128,16 +4128,21 @@ const dotDone = d => !!(d && H.maxDate && d <= H.maxDate && H.attempts.some(a =>
 const defaultDot = () => { const t = todayISO(); const o = dotsSorted().find(o => o.date >= t && !dotDone(o.date)); return o ? o.date : ''; };
 /* Đợt để đăng ký thi lại: chưa thi và chưa đủ số lượng giới hạn (đợt đã đủ bị ẩn để khỏi chọn nhầm) */
 const openDot = () => { const t = todayISO(); const o = dotsSorted().find(o => o.date >= t && !dotDone(o.date) && !capOf(o.date).full); return o ? o.date : ''; };
+/* Nhớ đợt vừa đăng ký trên máy này: người kế tiếp chọn sẵn đợt đó (nếu còn chỗ, chưa thi), không còn thì về đợt gần nhất còn chỗ */
+const dotUsable = d => !!d && !!dotOf(d) && d >= todayISO() && !dotDone(d) && !capOf(d).full;
+const lastDot = () => { let d = ''; try { d = localStorage.getItem('soA1.lastDot') || ''; } catch(e){} return dotUsable(d) ? d : ''; };
+const rememberDot = d => { try { if (d) localStorage.setItem('soA1.lastDot', d); } catch(e){} };
+const regDot = () => lastDot() || openDot();
 function dotOptions(value, reg){
   const t = todayISO(), up = dotsSorted().filter(o => o.date >= t && !dotDone(o.date)), hid = reg ? up.filter(o => capOf(o.date).full && o.date !== value) : [];
-  let opts = dotsSorted().filter(o => ((o.date >= t && !dotDone(o.date)) || o.date === value) && !hid.includes(o)).map(o => { const c = capOf(o.date); return `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${esc(dotLabel(o.date))}${c.lim ? (c.full ? ` — ĐÃ ĐỦ ${c.n}/${c.lim}` : ` — ${c.n}/${c.lim}, còn ${c.left} chỗ`) : ''}</option>`; }).join('');
+  let opts = dotsSorted().filter(o => ((o.date >= t && !dotDone(o.date)) || o.date === value) && !hid.includes(o)).map(o => { const c = capOf(o.date); return `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${reg && o.date === lastDot() ? '★ ' : ''}${esc(dotLabel(o.date))}${c.lim ? (c.full ? ` — ĐÃ ĐỦ ${c.n}/${c.lim}` : ` — ${c.n}/${c.lim}, còn ${c.left} chỗ`) : ''}</option>`; }).join('');
   if (value && !dotOf(value)) opts = `<option value="${value}" selected>${fd(value)}</option>` + opts;
   if (reg && !opts) opts = `<option value="">${hid.length ? 'Các đợt sắp tới đã đủ số lượng — thêm đợt mới ở tab Đợt thi' : 'Chưa có đợt nào, thêm ở tab Đợt thi'}</option>`;
   if (hid.length) opts += `<option value="" disabled>— Đã ẩn ${hid.length} đợt đủ số lượng: ${hid.map(o => fd(o.date)).join(', ')} —</option>`;
   return opts || '<option value="">Chưa có đợt nào, thêm ở tab Đợt thi</option>';
 }
 const dotSelect = (id, value, reg) => `<select id="${id}">${dotOptions(value, reg)}</select>`;
-function fillDotSelects(){ for (const id of ['mExam','tlBulkExam']) { const el = $('#'+id), reg = id === 'tlBulkExam'; let v = (el.value && dotOf(el.value)) ? el.value : reg ? openDot() : defaultDot(); if (reg && v && capOf(v).full) v = openDot(); el.innerHTML = dotOptions(v, reg); if (v) el.value = v; } }
+function fillDotSelects(){ for (const id of ['mExam','tlBulkExam']) { const el = $('#'+id), reg = id === 'tlBulkExam'; let v = (el.value && dotOf(el.value)) ? el.value : reg ? regDot() : defaultDot(); if (reg && v && capOf(v).full) v = regDot(); el.innerHTML = dotOptions(v, reg); if (v) el.value = v; } }
 function renderDots(){
   const t = todayISO(), list = dotsSorted().reverse();
   $('#dotList').innerHTML = list.length ? `<div class="dots">${list.map(o => {
@@ -4476,7 +4481,7 @@ window.openRetake = id => {
   const prevPhone = (S.regs.filter(r=>r.cccd===id && r.phone).pop() || {}).phone || '';
   dialog(`<h2>Đăng ký thi lại · ${esc(p.name)}</h2>
     <div class="row"><label class="f">Ngày đăng ký<input type="date" id="dReg" value="${todayISO()}"></label>
-    <label class="f">Đợt thi${dotSelect('dExam', openDot(), true)}</label>
+    <label class="f">Đợt thi${dotSelect('dExam', regDot(), true)}</label>
     <label class="f">SĐT<input id="dPhone" inputmode="tel" value="${esc(prevPhone)}"></label>
     <label class="f">Thu ngay<input id="dPaid" class="mono" inputmode="numeric" placeholder="0 = nộp sau"></label>${methodHtml('d')}</div>
     ${cccdWarnHtml(id, p.dob, true)}${staleHtml()}<div id="dFee" style="margin-top:10px"></div>
@@ -4491,7 +4496,7 @@ window.openRetake = id => {
       const evx = evalFor(id, $('#dExam').value);
       const paid0 = toNum($('#dPaid').value), mt = paid0 ? readMethod('d') : { method: 'TM' }; if (!mt) return;
       if (evx.uncertain && evx.uncertain.length && !$('#dUnc').checked) return blockMsg('Chưa xác nhận hạn bảo lưu', '<p>Ngày đạt gốc của một phần không có trong dữ liệu. Đối chiếu hồ sơ gốc rồi tick ô xác nhận trước khi lưu.</p>');
-      const r = makeRetake(id, $('#dReg').value, $('#dExam').value, $('#dNote').value, $('#dPhone').value, '');
+      const r = makeRetake(id, $('#dReg').value, $('#dExam').value, $('#dNote').value, $('#dPhone').value, ''); if (r) rememberDot(r.examDate);
       if (r && $('#cwOk')) { r.cccdChecked = { at: nowISO(), by: curUser() || '', issues: cccdIssues(id, p.dob) }; if (!ccChk(id)) ccMark(id, 'Đối chiếu khi đăng ký thi lại', true); logA('Đối chiếu CCCD gốc khi đăng ký', id, p.name, cccdIssues(id, p.dob).join('; ')); }
       if (!r) return blockMsg('Không cần thi lại', '<p>Theo dữ liệu, học viên đủ điều kiện ở cả 2 phần tại đợt này.</p>');
       if (evx.uncertain && evx.uncertain.length) { r.uncertainOk = { by: curUser(), at: new Date().toISOString() }; logA('Xác nhận hạn bảo lưu ước tính', id, p.name, evx.uncertain.join(', ')); }
@@ -4502,7 +4507,7 @@ window.openRetake = id => {
       save(); renderAll(); showPerson(id); toast(paid ? 'Đã đăng ký và ghi thu ' + money(paid) : 'Đã đăng ký, chưa thu tiền'); capNotice(r.examDate);
     }, 'Lưu đăng ký');
   const upd = () => {
-    const ex = $('#dExam').value || openDot(), e2 = evalFor(id, ex);
+    const ex = $('#dExam').value || regDot(), e2 = evalFor(id, ex);
     if (!e2 || e2.status === 'DAT') { $('#dFee').innerHTML = '<div class="alert ok">Tại đợt này học viên không cần thi lại.</div>'; return; }
     const f = C.fee(e2, S.cfg, $('#dReg').value);
     $('#dFee').innerHTML = `<div class="alert ${e2.expired && e2.expired.length ? 'bad' : ''}" style="margin-bottom:8px"><b>Phải thi lại: ${ndLabel(e2.need)}</b> tại đợt ${fd(ex)}<br><span class="small">${blExplain(e2, ex)}</span></div>
@@ -4511,7 +4516,7 @@ window.openRetake = id => {
     $('#dFee').insertAdjacentHTML('afterbegin', capLine(ex));
   };
   $('#dReg').oninput = upd; $('#dExam').onchange = upd; upd();
-  attachQP($('#dPhone'), 'phone'); attachQP($('#dPaid'), 'amount', () => dueFor(id, $('#dExam').value || openDot(), $('#dReg').value), 'Nộp đủ');
+  attachQP($('#dPhone'), 'phone'); attachQP($('#dPaid'), 'amount', () => dueFor(id, $('#dExam').value || regDot(), $('#dReg').value), 'Nộp đủ');
   $('#dExam').addEventListener('change', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw()); $('#dReg').addEventListener('input', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw());
 };
 const getBy = () => { if (typeof SESSION !== 'undefined' && SESSION && SESSION.user) return SESSION.user.name; try { return localStorage.getItem('soA1.by') || ''; } catch(e){ return ''; } };
@@ -4582,8 +4587,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.12.2', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.12.3', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.12.3', '23/11/2026', ['Nhớ đợt vừa đăng ký (★): người kế tiếp chọn sẵn đợt đó; đợt đó đủ số lượng / đã thi thì tự về đợt gần nhất còn chỗ']],
   ['3.12.2', '23/11/2026', ['Ô chọn đợt khi đăng ký / chuyển đợt / đăng ký hàng loạt / mời thi lại: ẩn đợt đã đủ số lượng, tự chọn đợt gần nhất còn chỗ; cuối danh sách ghi rõ các đợt đã ẩn']],
   ['3.12.1', '22/11/2026', ['Cảnh báo “đăng ký cần kiểm tra”: có mũi tên bung / thu gọn bảng chi tiết từng người (đang ghi, theo đúng đợt, đã thu, chênh lệch, lý do); chọn cách xử lý từng dòng hoặc các dòng đã chọn: Tính lại theo đúng đợt hoặc Giữ nguyên (ghi lý do, thôi báo)']],
   ['3.12.0', '11/11/2026', ['Mở tool là vào thẳng Quầy tra cứu', 'Chọn nhanh SĐT / người nhận và số tiền: nút bấm dưới ô nhập, chỉ hiện giá trị đã dùng từ 2 lần trở lên (dùng nhiều xếp trước, gõ để lọc); ô tiền luôn có nút “Nộp đủ” đúng lệ phí còn phải nộp, số lớn hơn lệ phí bị khoá; tắt gợi ý tự nhớ của trình duyệt ở các ô này. Áp dụng ở hộp đăng ký, hộp thu tiền, đăng ký hàng loạt']],
@@ -4817,8 +4823,8 @@ $('#tlBulkPay').onclick = () => {
 };
 $('#tlBulkDot').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=>r.id===id)).filter(Boolean);
   const from = [...new Set(list.map(r=>r.examDate))].map(dotLabel).join(', ');
-  dialog(`<h2>Chuyển ${list.length} người sang đợt khác</h2><p class="small">Đang ở: ${esc(from)}</p><label class="f">Đợt thi mới${dotSelect('bdDate', openDot(), true)}</label>`, () => {
-    const d = $('#bdDate').value; if (!d) return toast('Chưa chọn đợt');
+  dialog(`<h2>Chuyển ${list.length} người sang đợt khác</h2><p class="small">Đang ở: ${esc(from)}</p><label class="f">Đợt thi mới${dotSelect('bdDate', regDot(), true)}</label>`, () => {
+    const d = $('#bdDate').value; if (!d) return toast('Chưa chọn đợt'); rememberDot(d);
     if (dotDone(d)) return blockMsg('Không thể chuyển', `<p>Đợt ${fd(d)} đã có kết quả sát hạch.</p>`);
     if (capBlock(d, list.filter(r => r.examDate !== d && !r.cancelled && r.kind === 'lai').length)) return;
     logA('Đổi đợt hàng loạt', '', '', `${list.length} người → đợt ${fd(d)}`); for (const r of list) r.examDate = d; tlSel.clear(); refresh(); const bad = list.filter(r => regIssues(r).length); toast(`Đã chuyển ${list.length} người sang đợt ${fd(d)}` + (bad.length ? ` · ${bad.length} người cần tính lại phần thi/lệ phí` : '')); }, 'Chuyển đợt'); };
@@ -6772,7 +6778,7 @@ function transferPlan(from, to, kinds, regDate){
 window.transferDlg = from0 => {
   const doneDots = dotsSorted().filter(o => dotDone(o.date) && S.regs.some(r => r.kind === 'lai' && r.examDate === o.date)).map(o => o.date).reverse();
   if (!doneDots.length) return blockMsg('Chưa có đợt nào có kết quả', '<p>Nạp file kết quả sát hạch của đợt đã thi trước (Dữ liệu &amp; cài đặt).</p>');
-  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = openDot() || defaultDot();
+  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = regDot() || defaultDot();
   if (!to) return blockMsg('Chưa có đợt thi sắp tới', '<p>Thêm đợt mới ở tab Đợt thi trước.</p>');
   dialog(`<h2>Chuyển người Trượt / Vắng sang đợt mới</h2>
     <div class="row"><label class="f">Từ đợt (đã có kết quả)<select id="trFrom">${doneDots.map(d => `<option value="${d}"${d === from ? ' selected' : ''}>${esc(dotLabel(d))}</option>`).join('')}</select></label>
@@ -6786,6 +6792,7 @@ window.transferDlg = from0 => {
     let n = 0, sum = 0, cr = 0; const made = [];
     for (const x of plan) { const r = makeRetake(x.r.cccd, $('#trReg').value, $('#trTo').value, `Chuyển từ đợt ${fd(x.r.examDate)} (${x.o.l})`, x.r.phone || phoneOf(x.r.cccd), ''); if (!r) continue; n++; cr += r.creditApplied || 0; sum += regTotals(r).due; made.push(r); }
     setTimeout(() => capNotice($('#trTo').value), 0);
+    rememberDot($('#trTo').value);
     logA('Chuyển Trượt/Vắng sang đợt mới', '', '', `${n} người · đợt ${fd($('#trFrom').value)} → ${fd($('#trTo').value)} · phải thu ${money(sum)}${cr ? ' · trừ bảo lưu ' + money(cr) : ''}`);
     save(); renderAll();
     dialog(`<h2>Đã chuyển ${n} người sang đợt ${fd($('#trTo').value)}</h2><p>Tổng phải thu <b>${money(sum)} đ</b>${cr ? `, đã trừ tiền bảo lưu <b>${money(cr)} đ</b>` : ''}. Tất cả đang ở trạng thái chưa nộp đủ.</p><p class="small">Bước tiếp theo: gửi tin nhắn nhắc nộp tiền và lịch thi cho họ.</p>`, () => msgDlg(made.map(r => r.id), 'no'), 'Tạo tin nhắn nhắc nộp tiền');
@@ -7405,6 +7412,7 @@ function bkLoad(table, src){
   const pr = bkParse(table); if (!pr.rows.length) return blockMsg('Không đọc được dòng nào', '<p>Kiểm tra lại: mỗi dòng phải có số CCCD 12 số.</p>');
   const seen = new Map(); pr.rows.forEach(r => bkCheck(r, exam, regDate, seen));
   for (const r of pr.rows) { r.on = r.lvl === 'ok' || (r.lvl === 'warn' && !r.idWarn); r.pay = r.amount != null ? Math.max(0, Math.round(r.amount)) : 0; r.ph = r.phone || ''; }
+  rememberDot(exam);
   BKL = { rows: pr.rows, exam, regDate, src, header: pr.header, payMode: pr.rows.some(r => r.amount != null) ? 'col' : 'none' };
   logA('Kiểm tra danh sách đăng ký hàng loạt', '', '', `${src} · ${pr.rows.length} dòng · đợt ${fd(exam)}`);
   bkRender(); $('#bkOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
