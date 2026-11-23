@@ -881,14 +881,18 @@ const dotOf = d => (S.dots || []).find(x => x.date === d);
 const dotLabel = d => { if (!d) return '(chưa chọn đợt)'; const o = dotOf(d); return fd(d) + (o && o.name ? ' · ' + o.name : ''); };
 const dotDone = d => !!(d && H.maxDate && d <= H.maxDate && H.attempts.some(a => a.date === d));
 const defaultDot = () => { const t = todayISO(); const o = dotsSorted().find(o => o.date >= t && !dotDone(o.date)); return o ? o.date : ''; };
-function dotOptions(value){
-  const t = todayISO();
-  let opts = dotsSorted().filter(o => (o.date >= t && !dotDone(o.date)) || o.date === value).map(o => { const c = capOf(o.date); return `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${esc(dotLabel(o.date))}${c.lim ? (c.full ? ` — ĐÃ ĐỦ ${c.n}/${c.lim}` : ` — ${c.n}/${c.lim}, còn ${c.left} chỗ`) : ''}</option>`; }).join('');
+/* Đợt để đăng ký thi lại: chưa thi và chưa đủ số lượng giới hạn (đợt đã đủ bị ẩn để khỏi chọn nhầm) */
+const openDot = () => { const t = todayISO(); const o = dotsSorted().find(o => o.date >= t && !dotDone(o.date) && !capOf(o.date).full); return o ? o.date : ''; };
+function dotOptions(value, reg){
+  const t = todayISO(), up = dotsSorted().filter(o => o.date >= t && !dotDone(o.date)), hid = reg ? up.filter(o => capOf(o.date).full && o.date !== value) : [];
+  let opts = dotsSorted().filter(o => ((o.date >= t && !dotDone(o.date)) || o.date === value) && !hid.includes(o)).map(o => { const c = capOf(o.date); return `<option value="${o.date}"${o.date === value ? ' selected' : ''}>${esc(dotLabel(o.date))}${c.lim ? (c.full ? ` — ĐÃ ĐỦ ${c.n}/${c.lim}` : ` — ${c.n}/${c.lim}, còn ${c.left} chỗ`) : ''}</option>`; }).join('');
   if (value && !dotOf(value)) opts = `<option value="${value}" selected>${fd(value)}</option>` + opts;
+  if (reg && !opts) opts = `<option value="">${hid.length ? 'Các đợt sắp tới đã đủ số lượng — thêm đợt mới ở tab Đợt thi' : 'Chưa có đợt nào, thêm ở tab Đợt thi'}</option>`;
+  if (hid.length) opts += `<option value="" disabled>— Đã ẩn ${hid.length} đợt đủ số lượng: ${hid.map(o => fd(o.date)).join(', ')} —</option>`;
   return opts || '<option value="">Chưa có đợt nào, thêm ở tab Đợt thi</option>';
 }
-const dotSelect = (id, value) => `<select id="${id}">${dotOptions(value)}</select>`;
-function fillDotSelects(){ for (const id of ['mExam','tlBulkExam']) { const el = $('#'+id); const v = (el.value && dotOf(el.value)) ? el.value : defaultDot(); el.innerHTML = dotOptions(v); if (v) el.value = v; } }
+const dotSelect = (id, value, reg) => `<select id="${id}">${dotOptions(value, reg)}</select>`;
+function fillDotSelects(){ for (const id of ['mExam','tlBulkExam']) { const el = $('#'+id), reg = id === 'tlBulkExam'; let v = (el.value && dotOf(el.value)) ? el.value : reg ? openDot() : defaultDot(); if (reg && v && capOf(v).full) v = openDot(); el.innerHTML = dotOptions(v, reg); if (v) el.value = v; } }
 function renderDots(){
   const t = todayISO(), list = dotsSorted().reverse();
   $('#dotList').innerHTML = list.length ? `<div class="dots">${list.map(o => {
@@ -1222,11 +1226,12 @@ window.openRetake = id => {
   { const w = withdrawnOf(id); if (w) return rutBlockMsg(w); }
   const cur = activeReg(id);
   if (cur) return blockMsg('Không thể đăng ký thêm', `<p><b>${esc(p.name)}</b> đang nằm trong <b>${esc(regWhere(cur))}</b> và chưa có kết quả.</p><p class="small muted">Muốn chuyển sang đợt khác thì bấm <b>Sửa</b> ở đăng ký đó và chọn đợt mới.</p>`);
+  if (defaultDot() && !openDot()) return blockMsg('Các đợt sắp tới đã đủ số lượng', '<p>Tất cả đợt thi sắp tới đã đủ số người thi lại theo giới hạn. Thêm đợt mới (hoặc tăng giới hạn) ở tab <b>Đợt thi</b> rồi đăng ký.</p>');
   if (!defaultDot()) return blockMsg('Chưa có đợt thi', '<p>Thêm ngày sát hạch dự kiến ở tab <b>Đợt thi</b> trước khi đăng ký.</p>');
   const prevPhone = (S.regs.filter(r=>r.cccd===id && r.phone).pop() || {}).phone || '';
   dialog(`<h2>Đăng ký thi lại · ${esc(p.name)}</h2>
     <div class="row"><label class="f">Ngày đăng ký<input type="date" id="dReg" value="${todayISO()}"></label>
-    <label class="f">Đợt thi${dotSelect('dExam', defaultDot())}</label>
+    <label class="f">Đợt thi${dotSelect('dExam', openDot(), true)}</label>
     <label class="f">SĐT<input id="dPhone" inputmode="tel" value="${esc(prevPhone)}"></label>
     <label class="f">Thu ngay<input id="dPaid" class="mono" inputmode="numeric" placeholder="0 = nộp sau"></label>${methodHtml('d')}</div>
     ${cccdWarnHtml(id, p.dob, true)}${staleHtml()}<div id="dFee" style="margin-top:10px"></div>
@@ -1252,7 +1257,7 @@ window.openRetake = id => {
       save(); renderAll(); showPerson(id); toast(paid ? 'Đã đăng ký và ghi thu ' + money(paid) : 'Đã đăng ký, chưa thu tiền'); capNotice(r.examDate);
     }, 'Lưu đăng ký');
   const upd = () => {
-    const ex = $('#dExam').value || defaultDot(), e2 = evalFor(id, ex);
+    const ex = $('#dExam').value || openDot(), e2 = evalFor(id, ex);
     if (!e2 || e2.status === 'DAT') { $('#dFee').innerHTML = '<div class="alert ok">Tại đợt này học viên không cần thi lại.</div>'; return; }
     const f = C.fee(e2, S.cfg, $('#dReg').value);
     $('#dFee').innerHTML = `<div class="alert ${e2.expired && e2.expired.length ? 'bad' : ''}" style="margin-bottom:8px"><b>Phải thi lại: ${ndLabel(e2.need)}</b> tại đợt ${fd(ex)}<br><span class="small">${blExplain(e2, ex)}</span></div>
@@ -1261,7 +1266,7 @@ window.openRetake = id => {
     $('#dFee').insertAdjacentHTML('afterbegin', capLine(ex));
   };
   $('#dReg').oninput = upd; $('#dExam').onchange = upd; upd();
-  attachQP($('#dPhone'), 'phone'); attachQP($('#dPaid'), 'amount', () => dueFor(id, $('#dExam').value || defaultDot(), $('#dReg').value), 'Nộp đủ');
+  attachQP($('#dPhone'), 'phone'); attachQP($('#dPaid'), 'amount', () => dueFor(id, $('#dExam').value || openDot(), $('#dReg').value), 'Nộp đủ');
   $('#dExam').addEventListener('change', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw()); $('#dReg').addEventListener('input', () => $('#dPaid').qpDraw && $('#dPaid').qpDraw());
 };
 const getBy = () => { if (typeof SESSION !== 'undefined' && SESSION && SESSION.user) return SESSION.user.name; try { return localStorage.getItem('soA1.by') || ''; } catch(e){ return ''; } };
@@ -1332,8 +1337,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.12.1', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.12.2', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.12.2', '23/11/2026', ['Ô chọn đợt khi đăng ký / chuyển đợt / đăng ký hàng loạt / mời thi lại: ẩn đợt đã đủ số lượng, tự chọn đợt gần nhất còn chỗ; cuối danh sách ghi rõ các đợt đã ẩn']],
   ['3.12.1', '22/11/2026', ['Cảnh báo “đăng ký cần kiểm tra”: có mũi tên bung / thu gọn bảng chi tiết từng người (đang ghi, theo đúng đợt, đã thu, chênh lệch, lý do); chọn cách xử lý từng dòng hoặc các dòng đã chọn: Tính lại theo đúng đợt hoặc Giữ nguyên (ghi lý do, thôi báo)']],
   ['3.12.0', '11/11/2026', ['Mở tool là vào thẳng Quầy tra cứu', 'Chọn nhanh SĐT / người nhận và số tiền: nút bấm dưới ô nhập, chỉ hiện giá trị đã dùng từ 2 lần trở lên (dùng nhiều xếp trước, gõ để lọc); ô tiền luôn có nút “Nộp đủ” đúng lệ phí còn phải nộp, số lớn hơn lệ phí bị khoá; tắt gợi ý tự nhớ của trình duyệt ở các ô này. Áp dụng ở hộp đăng ký, hộp thu tiền, đăng ký hàng loạt']],
   ['3.11.0', '09/11/2026', ['Mục mới “Sai sót CCCD”: tự động lọc mọi trường hợp số CCCD có dấu hiệu sai, một CCCD nhiều tên, nghi trùng người (cùng tên + ngày sinh, 2 số CCCD), đăng ký có CCCD không có trong dữ liệu, dòng kết quả bị loại vì CCCD sai; lọc theo loại / tình trạng / phạm vi, đánh dấu đã đối chiếu kèm ghi chú, xuất Excel; số cần xử lý hiện trên menu']],
@@ -1410,7 +1416,7 @@ window.editReg = id => {
     <label class="f">Ngày sinh<input id="eDob" value="${esc(typeof r.dob==='string'&&r.dob.includes('-')?fd(r.dob):r.dob||'')}"></label>
     <label class="f">SĐT<input id="ePhone" value="${esc(r.phone||'')}"></label></div>
     <div class="row" style="margin-top:8px"><label class="f">Ngày đăng ký<input type="date" id="eReg" value="${r.regDate||''}"></label>
-    <label class="f">Đợt thi${dotSelect('eExam', r.examDate||'')}</label>
+    <label class="f">Đợt thi${dotSelect('eExam', r.examDate||'', r.kind === 'lai')}</label>
     ${isMoi ? `<label class="f">Loại<select id="eType"><option value="tron"${r.type!=='tudo'?' selected':''}>Học + thi</option><option value="tudo"${r.type==='tudo'?' selected':''}>Chỉ thi</option></select></label><label class="f">Khóa<input id="eCourse" value="${esc(r.course||'')}"></label>`
       : `<label class="f">Phần thi lại<select id="eParts">${['LT','H','LT+H'].map(o=>`<option${r.parts.join('+')===o?' selected':''}>${o}</option>`).join('')}</select></label>
          <label class="f">Đã có GPLX hạng<input id="eGplx" value="${esc(r.gplxHang||'')}" placeholder="vd: B, CE" style="width:90px"></label>
@@ -1566,7 +1572,7 @@ $('#tlBulkPay').onclick = () => {
 };
 $('#tlBulkDot').onclick = () => { const list = [...tlSel].map(id=>S.regs.find(r=>r.id===id)).filter(Boolean);
   const from = [...new Set(list.map(r=>r.examDate))].map(dotLabel).join(', ');
-  dialog(`<h2>Chuyển ${list.length} người sang đợt khác</h2><p class="small">Đang ở: ${esc(from)}</p><label class="f">Đợt thi mới${dotSelect('bdDate', defaultDot())}</label>`, () => {
+  dialog(`<h2>Chuyển ${list.length} người sang đợt khác</h2><p class="small">Đang ở: ${esc(from)}</p><label class="f">Đợt thi mới${dotSelect('bdDate', openDot(), true)}</label>`, () => {
     const d = $('#bdDate').value; if (!d) return toast('Chưa chọn đợt');
     if (dotDone(d)) return blockMsg('Không thể chuyển', `<p>Đợt ${fd(d)} đã có kết quả sát hạch.</p>`);
     if (capBlock(d, list.filter(r => r.examDate !== d && !r.cancelled && r.kind === 'lai').length)) return;
@@ -1999,7 +2005,7 @@ document.addEventListener('keydown', e => {
 const contactsOf = id => (S.contacts[id] || []);
 const phoneOf = id => { const c = contactsOf(id).filter(x => x.phone).pop(); if (c) return c.phone; const r = S.regs.filter(r => r.cccd === id && r.phone).pop(); if (r) return r.phone; const w = (S.withdrawals || []).filter(w => w.cccd === id && w.phone).pop(); return w ? w.phone : ''; };
 let mtlFilter = 'all', mtlPage = 0, mtlRows = [];
-function nextDotFor(){ return $('#mtlDot').value || defaultDot(); }
+function nextDotFor(){ return $('#mtlDot').value || openDot() || defaultDot(); }
 function mtlCandidates(){
   const t = todayISO(), out = [];
   for (const e of H.ev.values()) {
@@ -2019,7 +2025,7 @@ const MTL = [
 ];
 function mtlFee(e, dot){ const e2 = evalFor(e.id, dot) || e; return e2.status === 'DAT' ? { total: 0, items: {}, blockedH: false } : C.fee(e2, Object.assign({}, S.cfg, { examDate: dot || S.cfg.examDate }), todayISO()); }
 function renderMtl(){
-  const sel = $('#mtlDot'), cur = sel.value || defaultDot(); sel.innerHTML = dotOptions(cur); if (cur) sel.value = cur;
+  const sel = $('#mtlDot'); let cur = sel.value || openDot() || defaultDot(); if (cur && capOf(cur).full && openDot()) cur = openDot(); sel.innerHTML = dotOptions(cur, true); if (cur) sel.value = cur;
   const all = mtlCandidates();
   $('#mtlChips').innerHTML = MTL.map(([k, l, fn]) => `<button class="chip ${mtlFilter === k ? 'on' : ''}" data-f="${k}">${l}<span class="c">${all.filter(fn).length.toLocaleString('vi-VN')}</span></button>`).join('');
   const fn = MTL.find(m => m[0] === mtlFilter)[2];

@@ -165,11 +165,11 @@ function transferPlan(from, to, kinds, regDate){
 window.transferDlg = from0 => {
   const doneDots = dotsSorted().filter(o => dotDone(o.date) && S.regs.some(r => r.kind === 'lai' && r.examDate === o.date)).map(o => o.date).reverse();
   if (!doneDots.length) return blockMsg('Chưa có đợt nào có kết quả', '<p>Nạp file kết quả sát hạch của đợt đã thi trước (Dữ liệu &amp; cài đặt).</p>');
-  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = defaultDot();
+  const from = doneDots.includes(from0) ? from0 : doneDots[0], to = openDot() || defaultDot();
   if (!to) return blockMsg('Chưa có đợt thi sắp tới', '<p>Thêm đợt mới ở tab Đợt thi trước.</p>');
   dialog(`<h2>Chuyển người Trượt / Vắng sang đợt mới</h2>
     <div class="row"><label class="f">Từ đợt (đã có kết quả)<select id="trFrom">${doneDots.map(d => `<option value="${d}"${d === from ? ' selected' : ''}>${esc(dotLabel(d))}</option>`).join('')}</select></label>
-      <label class="f">Sang đợt${dotSelect('trTo', to)}</label><label class="f">Ngày đăng ký<input type="date" id="trReg" value="${todayISO()}"></label></div>
+      <label class="f">Sang đợt${dotSelect('trTo', to, true)}</label><label class="f">Ngày đăng ký<input type="date" id="trReg" value="${todayISO()}"></label></div>
     <div class="chips" style="margin-top:8px"><label class="chip"><input type="checkbox" class="trK" value="T" checked> Trượt</label><label class="chip"><input type="checkbox" class="trK" value="V" checked> Vắng</label><label class="chip"><input type="checkbox" class="trK" value="none"> Không có tên trong KQ</label></div>
     <div id="trPrev" class="tw" style="margin-top:10px;max-height:46vh"></div>
     <p class="small muted">Phần thi và lệ phí được tính lại theo lần thi mới nhất và ngày thi của đợt mới. Tiền bảo lưu tự trừ vào khoản Hình / thẻ GPLX nếu đợt mới có thu; học viên chỉ đóng phần thêm. Đăng ký mới ở trạng thái chưa nộp, thu tiền sau.</p>`, () => {
