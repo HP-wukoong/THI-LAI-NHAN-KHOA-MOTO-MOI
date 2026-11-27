@@ -319,7 +319,7 @@ async function idbSnapshot(){
   if (last && Date.now() - new Date(last.at).getTime() < 30 * 60e3) return;
   const at = nowISO(); await IDB.put('snap:' + at, JSON.stringify(S));
   idx.push({ at, regs: S.regs.length, pays: S.pays.length, paid: S.pays.reduce((s, p) => s + p.amount, 0) });
-  while (idx.length > 48) { const o = idx.shift(); await IDB.put('snap:' + o.at, null); }
+  while (idx.length > 48) { const o = idx.shift(); await (typeof IDBX !== 'undefined' ? IDBX.del('snap:' + o.at) : IDB.put('snap:' + o.at, null)); } /* xoá hẳn, không để lại khoá rỗng */
   await IDB.put('snapIdx', idx);
 }
 

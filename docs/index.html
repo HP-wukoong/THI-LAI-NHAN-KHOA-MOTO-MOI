@@ -3792,7 +3792,7 @@ async function idbSnapshot(){
   if (last && Date.now() - new Date(last.at).getTime() < 30 * 60e3) return;
   const at = nowISO(); await IDB.put('snap:' + at, JSON.stringify(S));
   idx.push({ at, regs: S.regs.length, pays: S.pays.length, paid: S.pays.reduce((s, p) => s + p.amount, 0) });
-  while (idx.length > 48) { const o = idx.shift(); await IDB.put('snap:' + o.at, null); }
+  while (idx.length > 48) { const o = idx.shift(); await (typeof IDBX !== 'undefined' ? IDBX.del('snap:' + o.at) : IDB.put('snap:' + o.at, null)); } /* xoá hẳn, không để lại khoá rỗng */
   await IDB.put('snapIdx', idx);
 }
 
@@ -7662,7 +7662,7 @@ function attachQP(inp, kind, getDue, fullLabel){
    ===================================================================== */
 const jsz = v => { try { return new Blob([JSON.stringify(v ?? null)]).size; } catch(e){ return 0; } };
 const IDBX = {
-  keys(){ return new Promise(r => { if (!IDB.db) return r([]); try { const out = []; const q = IDB.db.transaction('kv').objectStore('kv').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return r(out); out.push({ k: String(c.key), size: c.value instanceof Blob ? c.value.size : (c.value && c.value.base instanceof Blob) ? c.value.base.size + ((c.value.view && c.value.view.size) || 0) : jsz(c.value) }); c.continue(); }; q.onerror = () => r(out); } catch(e){ r([]); } }); },
+  keys(){ return new Promise(r => { if (!IDB.db) return r([]); try { const out = []; const q = IDB.db.transaction('kv').objectStore('kv').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return r(out); out.push({ k: String(c.key), nul: c.value == null, size: c.value instanceof Blob ? c.value.size : (c.value && c.value.base instanceof Blob) ? c.value.base.size + ((c.value.view && c.value.view.size) || 0) : jsz(c.value) }); c.continue(); }; q.onerror = () => r(out); } catch(e){ r([]); } }); },
   del(k){ return new Promise(r => { if (!IDB.db) return r(false); try { const t = IDB.db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = () => r(true); t.onerror = () => r(false); } catch(e){ r(false); } }); }
 };
 const DAY = 864e5, ago = iso => iso ? (Date.now() - new Date(iso).getTime()) / DAY : 0;
@@ -7692,6 +7692,9 @@ function memJobs(ctx){
   J.push({ id: 'idbArc', lv: ctx.fsReady ? 'g' : 'w', name: 'Bản sao nhật ký lưu trữ trong trình duyệt', n: arcIdb.length, size: arcIdb.reduce((a, x) => a + x.size, 0),
     why: ctx.fsReady ? 'Chỉ tính các tháng đã có file trong thư mục dữ liệu (nhat_ky). Bản sao trong trình duyệt chỉ để xem nhanh; xem lưu trữ vẫn đọc từ thư mục.' : 'Chưa mở thư mục dữ liệu: đây có thể là bản duy nhất — chỉ dọn khi đã chọn thư mục.',
     run: async () => { if (!FS.ready()) return 0; for (const x of arcIdb) await IDBX.del(x.k); return arcIdb.length; }, need: () => FS.ready() });
+  const nulK = ctx.idb.filter(x => x.nul);
+  J.push({ id: 'idbNull', lv: 'g', name: 'Khoá rỗng trong bộ nhớ trình duyệt', n: nulK.length, size: nulK.reduce((a, x) => a + x.k.length * 2 + 4, 0),
+    why: 'Bản chụp sổ cũ đã bị xoá nội dung nhưng còn để lại tên khoá. Xoá cho gọn, không ảnh hưởng gì.', run: async () => { for (const x of nulK) await IDBX.del(x.k); return nulK.length; } });
   const stale = ctx.dangMo.filter(f => Date.now() - f.at > DAY && !f.name.startsWith('_'));
   J.push({ id: 'dangmo', lv: 'g', name: 'Dấu “máy đang mở” cũ (thư mục dang_mo)', n: stale.length, size: stale.reduce((a, f) => a + f.size, 0),
     why: 'Máy đóng tool đột ngột để lại dấu này, làm tool báo nhầm “có máy khác đang mở”. Chỉ xoá dấu cũ hơn 1 ngày.', run: async () => { const d = await FS.sub('dang_mo'); for (const f of stale) await d.removeEntry(f.name).catch(() => {}); return stale.length; } });
