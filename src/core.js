@@ -305,36 +305,35 @@
   }
 
 
-  /* ---------- Sắp xếp tên tiếng Việt ----------
-     Tên riêng → Họ → Tên đệm. Trong mỗi chữ: so chữ cái trước (a<ă<â<b<c<d<đ<e<ê…, không mũ trước có mũ sau),
-     chữ cái giống nhau mới so dấu: không dấu < huyền < sắc < hỏi < ngã < nặng. */
-  const VI_ALPHA = 'a ă â b c d đ e ê f g h i j k l m n o ô ơ p q r s t u ư v w x y z'.split(' ');
-  const VI_IDX = new Map(VI_ALPHA.map((c, i) => [c, i + 10]));
+  /* ---------- Sắp xếp tên tiếng Việt — ĐỒNG NHẤT với "TOOLS BC1+BC2+SBD" (quy tắc v3, bản 2.9) ----------
+     Tên riêng → Họ → Tên đệm. Mỗi chữ:
+       1) so chữ cái, trong đó A/Ă/Â tính chung, D/Đ tính chung, U/Ư tính chung (E/Ê, O/Ô/Ơ vẫn khác nhau: e < ê, o < ô < ơ);
+       2) bằng nhau thì so dấu thanh: không dấu < huyền < sắc < hỏi < ngã < nặng;
+       3) vẫn bằng nhau thì chữ KHÔNG mũ đứng trước (AN trước ĂN trước ÂN; U trước Ư). D và Đ coi như nhau hoàn toàn. */
+  const VN_ALPHA = ['A','Ă','Â','B','C','D','Đ','E','Ê','F','G','H','I','J','K','L','M','N','O','Ô','Ơ','P','Q','R','S','T','U','Ư','V','W','X','Y','Z'];
+  const VN_RANK = Object.fromEntries(VN_ALPHA.map((ch, i) => [ch, String.fromCharCode(65 + i)]));
+  VN_RANK['Đ'] = VN_RANK['D'];
+  const VN_RANK2 = Object.assign({}, VN_RANK, { 'Ă': VN_RANK['A'], 'Â': VN_RANK['A'], 'Ư': VN_RANK['U'] });
   const TONE = { '̀': 1, '́': 2, '̉': 3, '̃': 4, '̣': 5 };
-  const SHAPE = { '̆': 'ă', '̂': 'â', '̛': 'ơ' };
+  const KEYC = new Map();
   function viWordKey(w) {
-    const letters = [], tones = [];
-    for (const ch of String(w).toLowerCase().normalize('NFC')) {
-      const d = ch.normalize('NFD'); let base = d[0], tone = 0;
-      for (const m of d.slice(1)) {
-        if (TONE[m]) tone = TONE[m];
-        else if (m === '̂') base = { a: 'â', e: 'ê', o: 'ô' }[base] || base;
-        else if (m === '̆') base = base === 'a' ? 'ă' : base;
-        else if (m === '̛') base = { o: 'ơ', u: 'ư' }[base] || base;
-      }
-      letters.push(VI_IDX.has(base) ? VI_IDX.get(base) : (/[0-9]/.test(base) ? +base : 200 + base.charCodeAt(0)));
-      tones.push(tone);
-    }
-    return { letters, tones };
+    w = String(w || ''); if (KEYC.has(w)) return KEYC.get(w);
+    let letters = '', tone = 0;
+    for (const ch of w.toUpperCase().normalize('NFD')) { if (TONE[ch]) { tone = TONE[ch]; continue; } letters += ch; }
+    const base = letters.normalize('NFC'); let L = '';
+    for (const ch of base) L += VN_RANK2[ch] || ('~' + ch);
+    let hats = ''; for (const ch of base) hats += ch === 'Ă' ? '1' : ch === 'Â' ? '2' : ch === 'Ư' ? '1' : '0';
+    const k = [L, tone, hats]; KEYC.set(w, k); return k;
   }
-  function cmpArr(a, b) { for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] - b[i]; return a.length - b.length; }
-  function viWordCmp(a, b) { const x = viWordKey(a), y = viWordKey(b); return cmpArr(x.letters, y.letters) || cmpArr(x.tones, y.tones); }
+  const cmpS = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  function viWordCmp(a, b) { const x = viWordKey(a), y = viWordKey(b); for (let i = 0; i < 3; i++) { const r = cmpS(x[i], y[i]); if (r) return r; } return 0; }
   function viWordsCmp(a, b) { for (let i = 0; i < Math.min(a.length, b.length); i++) { const c = viWordCmp(a[i], b[i]); if (c) return c; } return a.length - b.length; }
-  function viNameParts(n) { const w = norm(n).split(' ').filter(Boolean); if (w.length < 2) return { ten: w[0] || '', ho: '', dem: [] }; return { ten: w[w.length - 1], ho: w[0], dem: w.slice(1, -1) }; }
+  function viNameParts(n) { const p = String(n || '').trim().replace(/\s+/g, ' ').split(' ').filter(Boolean); return { ten: p.length ? p[p.length - 1] : '', ho: p.length > 1 ? p[0] : '', dem: p.length > 2 ? p.slice(1, -1) : [] }; }
   function viNameCmp(a, b) {
     const x = viNameParts(a), y = viNameParts(b);
     return viWordCmp(x.ten, y.ten) || viWordCmp(x.ho, y.ho) || viWordsCmp(x.dem, y.dem);
   }
+
 
 
   /** Sổ địa chỉ: bất kỳ sheet nào có cột Số định danh + Nơi cư trú (vd. sheet DanhSach của file Hội đồng, danh sách hồ sơ) */
