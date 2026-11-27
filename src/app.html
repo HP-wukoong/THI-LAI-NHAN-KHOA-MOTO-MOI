@@ -114,6 +114,10 @@ html.bgglass .panel,html.bgglass .kpi{background:color-mix(in srgb,var(--panel) 
 .qp-c i{font-style:normal;font-size:10.5px;color:var(--muted);background:var(--line2);border-radius:8px;padding:0 5px}
 .qp-c:hover{border-color:var(--brand);color:var(--brand)} .qp-c.full{background:var(--brand);color:#fff;border-color:var(--brand);font-weight:700}
 .qp-c.off{opacity:.38;cursor:not-allowed} .qp-c.clr{padding:2px 7px;color:var(--muted)}
+.mlv{display:inline-block;padding:1px 7px;border-radius:6px;font:700 10.5px/1.6 var(--font);letter-spacing:.02em;white-space:nowrap}
+.mlv.k{background:color-mix(in srgb,var(--bad) 14%,transparent);color:var(--bad)} .mlv.w{background:color-mix(in srgb,var(--warn) 22%,transparent);color:#8a5a00} .mlv.g{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.mbar{display:flex;height:26px;border-radius:8px;overflow:hidden;background:var(--line2);margin:6px 0} .mbar i{display:block;height:100%;min-width:2px}
+.mleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px} .mleg span{display:inline-flex;align-items:center;gap:5px} .mleg b{display:inline-block;width:10px;height:10px;border-radius:3px}
 .au-tg{width:28px;height:28px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;font:700 16px/1 var(--font);cursor:pointer;flex:none}
 .au-tg:hover{background:rgba(0,0,0,.06)}
 .cw-ic{display:inline-block;margin-left:5px;color:var(--bad);font-weight:800;cursor:help}
@@ -276,6 +280,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     <div class="grp">Hệ thống</div>
     <button data-t="data" data-i="gear">Dữ liệu &amp; cài đặt<span class="n" id="nIssue" hidden></span></button>
     <button data-t="log" data-i="log">Nhật ký thao tác</button>
+    <button data-t="mem" data-i="db">Bộ nhớ &amp; dọn dẹp<span class="n" id="nMem" hidden></span></button>
     <button data-t="hd" data-i="help">Hướng dẫn &amp; quy tắc phí</button>
   </nav>
   <div class="side-foot" id="hdrMeta">Chưa nạp dữ liệu</div>
@@ -518,6 +523,16 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
 </section>
 
 <!-- ============ ĐỐI SOÁT KỲ THI ============ -->
+<section class="tab" id="t-mem">
+  <div class="kpis" id="memKpi"></div>
+  <div class="panel"><h2>Dung lượng theo mục</h2><div id="memBar"></div></div>
+  <div class="panel"><div class="row" style="align-items:center"><h2 style="margin:0;flex:1">Chi tiết · mục nào giữ, mục nào dọn</h2>
+    <button class="b" id="memRefresh">Đo lại</button><button class="b p" id="memClean">Dọn rác an toàn…</button></div>
+    <p class="small muted" style="margin:6px 0 10px"><span class="mlv k">PHẢI GIỮ</span> dữ liệu nghiệp vụ, xoá là mất tiền / hồ sơ — tool không cho dọn. <span class="mlv w">DỌN CÓ ĐIỀU KIỆN</span> dọn được nhưng cần quyền quản lý, có sao lưu trước. <span class="mlv g">DỌN AN TOÀN</span> rác / bản sao tạm, xoá không ảnh hưởng nghiệp vụ.</p>
+    <div class="tw" id="memTable"></div></div>
+  <div class="panel"><h2>Kiểm tra tool hoạt động chính xác</h2><div id="memCheck"></div></div>
+</section>
+
 <section class="tab" id="t-cccd">
   <div class="kpis" id="ccKpi"></div>
   <div class="panel">
@@ -1342,8 +1357,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.12.3', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.13.0', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.13.0', '27/11/2026', ['Mục mới “Bộ nhớ & dọn dẹp”: đo dung lượng trình duyệt, thư mục dữ liệu và từng phần của sổ; biểu đồ trực quan; phân loại PHẢI GIỮ / DỌN CÓ ĐIỀU KIỆN / DỌN AN TOÀN kèm giải thích; dọn rác an toàn một nút (tự sao lưu trước, ghi nhật ký); kiểm tra tool hoạt động chính xác (toàn vẹn dữ liệu, số phiếu, lưu trữ bền vững)']],
   ['3.12.3', '23/11/2026', ['Nhớ đợt vừa đăng ký (★): người kế tiếp chọn sẵn đợt đó; đợt đó đủ số lượng / đã thi thì tự về đợt gần nhất còn chỗ']],
   ['3.12.2', '23/11/2026', ['Ô chọn đợt khi đăng ký / chuyển đợt / đăng ký hàng loạt / mời thi lại: ẩn đợt đã đủ số lượng, tự chọn đợt gần nhất còn chỗ; cuối danh sách ghi rõ các đợt đã ẩn']],
   ['3.12.1', '22/11/2026', ['Cảnh báo “đăng ký cần kiểm tra”: có mũi tên bung / thu gọn bảng chi tiết từng người (đang ghi, theo đúng đợt, đã thu, chênh lệch, lý do); chọn cách xử lý từng dòng hoặc các dòng đã chọn: Tính lại theo đúng đợt hoặc Giữ nguyên (ghi lý do, thôi báo)']],
@@ -1862,6 +1878,7 @@ const ICONS = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5h.01"/>',
   folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6M9 14h6"/>',
+  db: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
   warn: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>',
   log: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>'
 };
@@ -1883,6 +1900,7 @@ const PAGES = {
   dot: ['Đợt thi', 'Ngày sát hạch dự kiến, mã QR từng đợt, tổng hợp tiền theo đợt'],
   data: ['Dữ liệu & cài đặt', 'Nạp file kết quả, nơi lưu dữ liệu, quy tắc phí, mật khẩu, thùng rác'],
   log: ['Nhật ký thao tác', 'Ai đã làm gì, lúc nào'],
+  mem: ['Bộ nhớ & dọn dẹp', 'Tool đang dùng bao nhiêu bộ nhớ, mục nào phải giữ, mục nào dọn được'],
   khoa: ['Khóa mới dự kiến', 'Đợt sắp mở: ngày sát hạch dự kiến, số lượng dự kiến, các lần nhận hồ sơ, số rút, lịch sử đối chiếu'],
   moi: ['Nạp mới', '']
 };
@@ -1892,7 +1910,7 @@ function switchTab(t){
   document.querySelectorAll('section.tab').forEach(s => s.classList.toggle('on', s.id === 't-' + t));
   $('#pgTitle').textContent = PAGES[t][0]; $('#pgSub').textContent = PAGES[t][1];
   try { localStorage.setItem('soA1.tab', t); } catch(e){}
-  if (t === 'ds') renderDs(); if (t === 'cccd') renderCccd(); if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); renderBkManager(); }
+  if (t === 'ds') renderDs(); if (t === 'cccd') renderCccd(); if (t === 'mem') renderMem(); if (t === 'mtl') renderMtl(); if (t === 'dsoat') renderDsoat(); if (t === 'log') renderLog(); if (t === 'tk') renderTk(); if (t === 'khoa') renderKhoa(); if (t === 'home') renderHome(); if (t === 'quy') renderQuy(); if (t === 'bc') renderBc(); if (t === 'hd') renderHd(); if (t === 'data') { renderStoragePanel(); renderUsers(); renderIntegrity(true); renderBkManager(); }
 }
 const curUser = () => getBy();
 function renderUser(){ const n = curUser(); $('#userName').textContent = (n || 'Chưa đặt tên người trực') + (typeof SESSION !== 'undefined' && SESSION.user ? ' · ' + ROLES[SESSION.user.role] : ''); $('#userAv').textContent = n ? n.trim().split(/\s+/).pop()[0].toUpperCase() : '?'; }

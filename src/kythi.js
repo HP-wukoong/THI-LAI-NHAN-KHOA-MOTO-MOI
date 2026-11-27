@@ -1025,3 +1025,131 @@ function attachQP(inp, kind, getDue, fullLabel){
     inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); draw(); };
   inp.addEventListener('input', draw); inp.qpDraw = draw; draw();
 }
+
+/* =====================================================================
+   BỘ NHỚ & DỌN DẸP: đo dung lượng, phân loại giữ / dọn, dọn rác an toàn, kiểm tra hoạt động
+   ===================================================================== */
+const jsz = v => { try { return new Blob([JSON.stringify(v ?? null)]).size; } catch(e){ return 0; } };
+const IDBX = {
+  keys(){ return new Promise(r => { if (!IDB.db) return r([]); try { const out = []; const q = IDB.db.transaction('kv').objectStore('kv').openCursor(); q.onsuccess = () => { const c = q.result; if (!c) return r(out); out.push({ k: String(c.key), size: c.value instanceof Blob ? c.value.size : (c.value && c.value.base instanceof Blob) ? c.value.base.size + ((c.value.view && c.value.view.size) || 0) : jsz(c.value) }); c.continue(); }; q.onerror = () => r(out); } catch(e){ r([]); } }); },
+  del(k){ return new Promise(r => { if (!IDB.db) return r(false); try { const t = IDB.db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = () => r(true); t.onerror = () => r(false); } catch(e){ r(false); } }); }
+};
+const DAY = 864e5, ago = iso => iso ? (Date.now() - new Date(iso).getTime()) / DAY : 0;
+/* Các việc dọn: tính ra số lượng / dung lượng sẽ giải phóng; run() thực hiện */
+function memJobs(ctx){
+  const J = [];
+  /* Ảnh QR tải lên không còn dùng (đợt dùng QR tự tạo, hoặc đợt đã thi xong hơn 30 ngày) */
+  const qrDots = (S.dots || []).filter(o => o.qr && (o.qrMode !== 'image' || (dotDone(o.date) && ago(o.date) > 30)));
+  J.push({ id: 'qr', lv: 'g', name: 'Ảnh QR tải lên không còn dùng', n: qrDots.length, size: qrDots.reduce((a, o) => a + (o.qr || '').length, 0),
+    why: 'Đợt đang dùng QR VietQR tự tạo (nét hơn) hoặc đã thi xong trên 30 ngày; ảnh cũ chỉ chiếm chỗ trong file sổ.', run: () => { qrDots.forEach(o => { o.qr = ''; o.qrMode = 'auto'; }); return qrDots.length; } });
+  /* Dấu xoá đồng bộ (tombstone) cũ hơn 180 ngày */
+  const oldT = Object.entries(S.tomb || {}).filter(([, at]) => ago(at) > 180), oldR = Object.entries(S.revive || {}).filter(([, at]) => ago(at) > 180);
+  J.push({ id: 'tomb', lv: 'w', name: 'Dấu xoá đồng bộ cũ hơn 180 ngày', n: oldT.length + oldR.length, size: jsz(Object.fromEntries(oldT.concat(oldR))),
+    why: 'Dùng để máy khác biết bản ghi đã bị xoá. Sau 180 ngày mọi máy đã đồng bộ; chỉ cần giữ nếu có máy nửa năm chưa mở tool.', run: () => { oldT.forEach(([k]) => delete S.tomb[k]); oldR.forEach(([k]) => delete S.revive[k]); return oldT.length + oldR.length; } });
+  /* Thùng rác cũ hơn 90 ngày */
+  const oldTr = (S.trash || []).filter(t => ago(t.at) > 90);
+  J.push({ id: 'trash', lv: 'w', name: 'Thùng rác cũ hơn 90 ngày', n: oldTr.length, size: jsz(oldTr),
+    why: 'Bản ghi đã xoá từ lâu, không khôi phục nữa. Xoá vĩnh viễn: số phiếu của khoản thu bị xoá được ghi lại trong nhật ký để đối chiếu.',
+    run: () => { for (const t of oldTr) { const nos = (t.pays || (t.pay ? [t.pay] : [])).map(p => p.no).filter(Boolean); logA('Xoá vĩnh viễn (dọn dẹp)', (t.reg || t.pay || t.rut || {}).cccd, (t.reg || t.rut || {}).name, t.type + (nos.length ? ' · số phiếu ' + nos.join(', ') : '')); }
+      const ids = new Set(oldTr.map(t => t.id)); S.trash = S.trash.filter(t => !ids.has(t.id)); return oldTr.length; } });
+  /* Nhật ký cũ → chuyển sang lưu trữ theo tháng (không mất) */
+  const keep = +(S.cfg.logKeepMonths || 6), cutD = new Date(); cutD.setMonth(cutD.getMonth() - keep); const cut = cutD.toISOString().slice(0, 7), oldL = (S.log || []).filter(l => l.at.slice(0, 7) < cut);
+  J.push({ id: 'log', lv: 'g', name: `Nhật ký cũ hơn ${keep} tháng → chuyển sang lưu trữ`, n: oldL.length, size: jsz(oldL),
+    why: 'Không xoá: chuyển sang file nhật ký theo tháng (thư mục nhat_ky) và vẫn xem được ở tab Nhật ký → “Xem lưu trữ”. File sổ nhẹ hơn, lưu nhanh hơn.', run: async () => { await FS.archiveLog(); return oldL.length; } });
+  /* Bộ nhớ trình duyệt */
+  const arcIdb = ctx.idb.filter(x => x.k.startsWith('logArc:') && ctx.nhatky.includes(`nhat_ky_${x.k.slice(7)}.json`)); /* chỉ bản sao đã có file trong thư mục */
+  J.push({ id: 'idbArc', lv: ctx.fsReady ? 'g' : 'w', name: 'Bản sao nhật ký lưu trữ trong trình duyệt', n: arcIdb.length, size: arcIdb.reduce((a, x) => a + x.size, 0),
+    why: ctx.fsReady ? 'Chỉ tính các tháng đã có file trong thư mục dữ liệu (nhat_ky). Bản sao trong trình duyệt chỉ để xem nhanh; xem lưu trữ vẫn đọc từ thư mục.' : 'Chưa mở thư mục dữ liệu: đây có thể là bản duy nhất — chỉ dọn khi đã chọn thư mục.',
+    run: async () => { if (!FS.ready()) return 0; for (const x of arcIdb) await IDBX.del(x.k); return arcIdb.length; }, need: () => FS.ready() });
+  const stale = ctx.dangMo.filter(f => Date.now() - f.at > DAY && !f.name.startsWith('_'));
+  J.push({ id: 'dangmo', lv: 'g', name: 'Dấu “máy đang mở” cũ (thư mục dang_mo)', n: stale.length, size: stale.reduce((a, f) => a + f.size, 0),
+    why: 'Máy đóng tool đột ngột để lại dấu này, làm tool báo nhầm “có máy khác đang mở”. Chỉ xoá dấu cũ hơn 1 ngày.', run: async () => { const d = await FS.sub('dang_mo'); for (const f of stale) await d.removeEntry(f.name).catch(() => {}); return stale.length; } });
+  const hong = ctx.hong.filter(f => Date.now() - f.at > 180 * DAY);
+  J.push({ id: 'hong', lv: 'w', name: 'File hỏng đã cất cũ hơn 180 ngày (sao_luu/hong)', n: hong.length, size: hong.reduce((a, f) => a + f.size, 0),
+    why: 'File dữ liệu lỗi / bị sửa tay tool đã cất lại để điều tra. Sau 180 ngày thường không cần nữa.', run: async () => { const d = await FS.sub('sao_luu/hong'); for (const f of hong) await d.removeEntry(f.name).catch(() => {}); return hong.length; } });
+  return J;
+}
+/* Các mục phải giữ (để hiển thị dung lượng + lý do) */
+function memKeepRows(){
+  const dotsNoQr = (S.dots || []).map(o => Object.assign({}, o, { qr: '' }));
+  return [
+    ['Đăng ký thi lại / hồ sơ', S.regs.length, jsz(S.regs), 'Ai đăng ký đợt nào, phần thi, lệ phí — gốc của mọi danh sách, tổng kết.'],
+    ['Khoản thu, chi, chuyển bảo lưu', S.pays.length, jsz(S.pays), 'Tiền thật đã thu / hoàn; số phiếu liên tục. Xoá là mất chứng từ.'],
+    ['Chốt quỹ, bộ đếm số phiếu', (S.closings || []).length, jsz(S.closings) + jsz(S.seq), 'Biên bản bàn giao quỹ; số phiếu PT/PC/BL không được nhảy lùi.'],
+    ['Tiền bảo lưu', (S.credits || []).length, jsz(S.credits), 'Tiền học viên vắng / trượt còn giữ để trừ đợt sau.'],
+    ['Đợt thi (không tính ảnh QR)', (S.dots || []).length, jsz(dotsNoQr), 'Ngày, tên, giới hạn, giờ, địa điểm từng đợt.'],
+    ['Rút hồ sơ', (S.withdrawals || []).length, jsz(S.withdrawals), 'Biên bản rút, tiền hoàn, giấy tờ trả lại.'],
+    ['Khóa mới dự kiến', (S.khoa || []).length, jsz(S.khoa), 'Số liệu nhận hồ sơ khóa mới để đối chiếu.'],
+    ['Lịch sử liên hệ, đối chiếu CCCD', Object.values(S.contacts || {}).reduce((a, l) => a + l.length, 0) + (S.cccdChk || []).length, jsz(S.contacts) + jsz(S.cccdChk), 'Ai đã gọi / nhắn, ai đã đối chiếu CCCD gốc.'],
+    ['Người dùng, cài đặt, tài khoản ngân hàng', (S.users || []).length, jsz(S.users) + jsz(S.cfg), 'Quyền, mã PIN, bảng giá, quy tắc tính phí.'],
+    ['Nhật ký thao tác (đang giữ trong sổ)', (S.log || []).length, jsz(S.log), 'Bằng chứng khi có tranh chấp; phần cũ chuyển sang lưu trữ, không xoá.'],
+    ['Kết quả sát hạch đã nạp', H.attempts.length, jsz(H.attempts), 'Lịch sử thi của ' + H.people.size.toLocaleString('vi-VN') + ' người — tính bảo lưu, lệ phí. Nạp lại được từ file gốc nhưng mất thời gian.']];
+}
+let memCtx = null;
+async function memMeasure(){
+  const ctx = { idb: await IDBX.keys(), fsReady: FS.ready(), dirs: [], dangMo: [], hong: [], nhatky: [], est: null, persisted: null };
+  try { ctx.est = await navigator.storage.estimate(); } catch(e){} try { ctx.persisted = await navigator.storage.persisted(); } catch(e){}
+  if (ctx.fsReady) { for (const [path, name, desc, keep] of BM_DIRS) { const fs = await listDir(path); const files = (fs || []).filter(f => path || /\.json$/.test(f.name)); ctx.dirs.push({ path, name, keep, n: files.length, size: files.reduce((a, f) => a + f.size, 0) }); }
+    ctx.dangMo = (await listDir('dang_mo')) || []; ctx.hong = (await listDir('sao_luu/hong')) || []; ctx.nhatky = ((await listDir('nhat_ky')) || []).filter(f => f.size > 20).map(f => f.name); }
+  ctx.sState = jsz(S); ctx.lsSize = (() => { let n = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); n += k.length + (localStorage.getItem(k) || '').length; } } catch(e){} return n * 2; })();
+  return ctx;
+}
+window.renderMem = async () => {
+  const el = $('#memTable'); if (!el) return; el.innerHTML = '<div class="small muted">Đang đo…</div>';
+  const ctx = memCtx = await memMeasure(), jobs = memJobs(ctx), keepR = memKeepRows();
+  const used = ctx.est ? ctx.est.usage : 0, quota = ctx.est ? ctx.est.quota : 0, folder = ctx.dirs.reduce((a, d) => a + d.size, 0), clean = jobs.filter(j => j.n).reduce((a, j) => a + j.size, 0);
+  $('#memKpi').innerHTML = [
+    ['Trình duyệt (máy này)', used ? `${fmtSize(used)}<span class="small muted"> / ${fmtSize(quota)}</span>` : 'không đo được', used / quota > .8 ? 'bad' : 'ok'],
+    ['File sổ (so_thu.json)', fmtSize(ctx.sState), ctx.sState > 8 * 1048576 ? 'warn' : 'ok'],
+    ['Thư mục dữ liệu + sao lưu', ctx.fsReady ? fmtSize(folder) : 'chưa mở thư mục', ctx.fsReady ? 'ok' : 'warn'],
+    ['Dọn được', clean ? fmtSize(clean) : 'không có rác', clean ? 'warn' : 'ok'],
+    ['Lưu trữ bền vững', ctx.persisted ? 'Đã bật' : 'Chưa bật', ctx.persisted ? 'ok' : 'warn']].map(([l, v, c]) => `<div class="kpi ${c}"><span>${l}</span><b style="font-size:17px">${v}</b></div>`).join('');
+  /* Biểu đồ dung lượng file sổ theo mục */
+  const parts = keepR.filter(r => r[0] !== 'Kết quả sát hạch đã nạp').map(r => [r[0], r[2], 'k']).concat([['Ảnh QR đợt', (S.dots || []).reduce((a, o) => a + (o.qr || '').length, 0), 'q'], ['Thùng rác', jsz(S.trash), 't'], ['Dấu xoá đồng bộ', jsz(S.tomb) + jsz(S.revive), 's']]).filter(p => p[1] > 64).sort((a, b) => b[1] - a[1]);
+  const tot = parts.reduce((a, p) => a + p[1], 0) || 1, pal = ['#2f6fb2', '#3f8f5a', '#7a5cc2', '#c07a1a', '#b23a48', '#2a9d9d', '#8a8f3a', '#6b6f78', '#d06aa0', '#4f5bd5', '#9c6b3f', '#5a7d2a', '#a05cc2', '#777'];
+  const blk = (title, arr, total) => `<div class="small" style="margin-top:6px"><b>${title}</b> · ${fmtSize(total)}</div><div class="mbar">${arr.map((p, i) => `<i style="width:${(p[1] / total * 100).toFixed(2)}%;background:${p[3] || pal[i % pal.length]}" title="${esc(p[0])}: ${fmtSize(p[1])} (${(p[1] / total * 100).toFixed(1)}%)"></i>`).join('')}</div>
+    <div class="mleg">${arr.map((p, i) => `<span><b style="background:${p[3] || pal[i % pal.length]}"></b>${esc(p[0])} <span class="muted">${fmtSize(p[1])}</span></span>`).join('')}</div>`;
+  const brw = ctx.idb.map(x => [x.k === 'state' ? 'Bản sao sổ (dùng khi chưa mở thư mục)' : x.k === 'hist' ? 'Kết quả sát hạch' : x.k === 'bg' ? 'Ảnh nền' : x.k.startsWith('snap') ? 'Bản chụp sổ để khôi phục khẩn (tự xoay vòng)' : x.k === 'logArcIdx' ? 'Nhật ký lưu trữ (bản sao)' : x.k.startsWith('logArc') ? 'Nhật ký lưu trữ ' + x.k.slice(7) : x.k === 'fsBase' ? 'Bản gốc để gộp dữ liệu nhiều máy' : x.k, x.size]).filter(p => p[1] > 0).sort((a, b) => b[1] - a[1]);
+  const brwG = []; brw.forEach(p => { const g = p[0].startsWith('Nhật ký lưu trữ') ? 'Nhật ký lưu trữ (bản sao)' : p[0]; const f = brwG.find(x => x[0] === g); f ? f[1] += p[1] : brwG.push([g, p[1]]); });
+  $('#memBar').innerHTML = blk('File sổ thu (so_thu.json)', parts, tot) + (brwG.length ? blk('Bộ nhớ trình duyệt của máy này', brwG, brwG.reduce((a, p) => a + p[1], 0)) : '')
+    + (ctx.fsReady ? blk('Thư mục dữ liệu trên ổ đĩa', ctx.dirs.filter(d => d.size).map(d => [d.name, d.size]), folder || 1) : '<div class="alert" style="margin-top:8px">Chưa mở thư mục dữ liệu nên chưa đo được dung lượng trên ổ đĩa.</div>');
+  /* Bảng chi tiết */
+  const lvl = { k: '<span class="mlv k">PHẢI GIỮ</span>', w: '<span class="mlv w">DỌN CÓ ĐIỀU KIỆN</span>', g: '<span class="mlv g">DỌN AN TOÀN</span>' };
+  el.innerHTML = `<table><tr><th>Mức</th><th>Mục</th><th class="num">Số lượng</th><th class="num">Dung lượng</th><th>Vì sao</th><th></th></tr>
+    ${jobs.map(j => `<tr><td>${lvl[j.lv]}</td><td><b>${esc(j.name)}</b></td><td class="num">${j.n}</td><td class="num mono">${j.n ? fmtSize(j.size) : '—'}</td><td class="small" style="white-space:normal;min-width:280px">${esc(j.why)}</td>
+      <td class="act">${j.n && (!j.need || j.need()) ? `<button class="b s${j.lv === 'g' ? ' p' : ''}" data-mj="${j.id}">Dọn</button>` : '<span class="small muted">không có</span>'}</td></tr>`).join('')}
+    ${keepR.map(r => `<tr><td>${lvl.k}</td><td>${esc(r[0])}</td><td class="num">${r[1].toLocaleString('vi-VN')}</td><td class="num mono">${fmtSize(r[2])}</td><td class="small" style="white-space:normal">${esc(r[3])}</td><td class="small muted">giữ</td></tr>`).join('')}
+    ${ctx.fsReady ? ctx.dirs.filter(d => d.n).map(d => `<tr><td>${d.path.startsWith('sao_luu') || d.path === 'nhat_ky' ? lvl.k : lvl.k}</td><td>Thư mục: ${esc(d.name)} <span class="small mono muted">${esc(d.path || '(gốc)')}</span></td><td class="num">${d.n}</td><td class="num mono">${fmtSize(d.size)}</td><td class="small">${esc(d.keep)} — tool tự xoay vòng, không cần dọn tay</td><td class="small muted">tự quản</td></tr>`).join('') : ''}
+    ${ctx.idb.some(x => x.k === 'bg') ? `<tr><td>${lvl.g}</td><td>Ảnh nền (máy này)</td><td class="num">1</td><td class="num mono">${fmtSize(ctx.idb.find(x => x.k === 'bg').size)}</td><td class="small">Chỉ để trang trí; bỏ ở nút “Ảnh nền” nếu máy chậm.</td><td class="act"><button class="b s" onclick="bgDlg()">Ảnh nền…</button></td></tr>` : ''}</table>`;
+  /* Kiểm tra hoạt động */
+  const rep = integrityReport(), bad = rep.filter(x => x.lv === 'bad').length, warn = rep.filter(x => x.lv === 'warn').length, chk = [];
+  chk.push([!bad, `Toàn vẹn dữ liệu: ${bad ? bad + ' lỗi' : 'không có lỗi'}${warn ? ', ' + warn + ' cảnh báo' : ''}`, bad || warn ? `<button class="b s" onclick="switchTab('data');setTimeout(()=>$('#intOut').scrollIntoView({behavior:'smooth'}),200)">Xem chi tiết</button>` : '']);
+  chk.push([ctx.fsReady, ctx.fsReady ? `Thư mục dữ liệu đang mở: ${esc(FS.dir.name)} · lưu lần cuối ${FS.last ? FS.last.toLocaleString('vi-VN') : '—'}` : 'Chưa mở thư mục dữ liệu — dữ liệu chỉ nằm trong trình duyệt, dễ mất khi xoá lịch sử duyệt web', ctx.fsReady ? '' : `<button class="b s p" onclick="switchTab('data')">Chọn thư mục</button>`]);
+  chk.push([!!ctx.persisted, ctx.persisted ? 'Trình duyệt đã cam kết không tự xoá dữ liệu của tool' : 'Trình duyệt có thể tự dọn dữ liệu của tool khi ổ đầy', ctx.persisted ? '' : `<button class="b s" id="memPersist">Xin giữ lâu dài</button>`]);
+  chk.push([!(quota && used / quota > .8), quota ? `Bộ nhớ trình duyệt dùng ${(used / quota * 100).toFixed(1)}% hạn mức` : 'Không đo được hạn mức trình duyệt', '']);
+  chk.push([ctx.sState < 8 * 1048576, `File sổ ${fmtSize(ctx.sState)} ${ctx.sState < 8 * 1048576 ? '(nhẹ, lưu nhanh)' : '(nặng — nên dọn ảnh QR / chuyển nhật ký cũ)'}`, '']);
+  const t0 = performance.now(); renderAll(); const ms = performance.now() - t0;
+  chk.push([ms < 400, `Tốc độ: mỗi thao tác vẽ lại màn hình mất ${ms.toFixed(0)} ms ${ms < 400 ? '(mượt)' : '(hơi chậm)'}`, '']);
+  $('#memCheck').innerHTML = `<table>${chk.map(([ok, t, a]) => `<tr><td style="width:28px;font-size:16px">${ok ? '<span class="r-D">✓</span>' : '<span class="r-T">!</span>'}</td><td>${t}</td><td class="act">${a}</td></tr>`).join('')}</table>`;
+  if ($('#memPersist')) $('#memPersist').onclick = async () => { let ok = false; try { ok = await navigator.storage.persist(); } catch(e){} toast(ok ? 'Đã bật lưu trữ lâu dài' : 'Trình duyệt chưa cho phép (cài tool thành ứng dụng hoặc dùng thường xuyên sẽ được cấp)'); renderMem(); };
+  const nb = $('#nMem'), nWarn = jobs.filter(j => j.lv === 'g' && j.n).length + (bad ? 1 : 0); if (nb) { nb.hidden = !nWarn; nb.textContent = nWarn; }
+};
+async function memRun(ids, title){
+  const jobs = memJobs(memCtx || await memMeasure()).filter(j => ids.includes(j.id) && j.n && (!j.need || j.need())); if (!jobs.length) return toast('Không có gì để dọn');
+  const touchS = jobs.some(j => ['qr', 'tomb', 'trash', 'log'].includes(j.id));
+  const go = async () => {
+    /* sao lưu trước khi dọn dữ liệu sổ */
+    if (touchS && FS.ready()) { try { const pk = await packState(S), dir = await FS.sub('sao_luu/thu_cong'), name = `truoc_don_dep_${stamp()}.json`; await FS.writeText(dir, name, pk.text); logA('Sao lưu trước khi dọn dẹp', '', '', 'sao_luu/thu_cong/' + name); } catch(e){ return blockMsg('Không sao lưu được', '<p>Chưa dọn gì. Kiểm tra thư mục dữ liệu rồi thử lại.</p>'); } }
+    const res = []; let freed = 0;
+    for (const j of jobs) { try { const n = await j.run(); res.push(`${j.name}: ${n}`); freed += j.size; } catch(e){ res.push(`${j.name}: lỗi (${e.message})`); } }
+    logA('Dọn dẹp bộ nhớ', '', '', res.join(' · ') + ` · giải phóng ~${fmtSize(freed)}`); save(); renderAll(); memCtx = null; await renderMem();
+    toast(`Đã dọn, giải phóng khoảng ${fmtSize(freed)}`);
+  };
+  dialog(`<h2>${esc(title)}</h2><table>${jobs.map(j => `<tr><td>${j.lv === 'g' ? '<span class="mlv g">AN TOÀN</span>' : '<span class="mlv w">CÓ ĐIỀU KIỆN</span>'}</td><td>${esc(j.name)}</td><td class="num">${j.n}</td><td class="num mono">${fmtSize(j.size)}</td></tr>`).join('')}</table>
+    <p class="small" style="margin-top:8px">${touchS ? (FS.ready() ? 'Tool sẽ <b>tự sao lưu sổ</b> vào sao_luu/thu_cong trước khi dọn.' : '<b class="r-T">Chưa mở thư mục dữ liệu nên không sao lưu trước được.</b>') : ''} Mọi việc dọn được ghi vào nhật ký. Không đụng tới đăng ký, khoản thu, chốt quỹ, tiền bảo lưu.</p>`,
+    () => { jobs.some(j => j.lv === 'w') ? requireAdmin('Dọn dẹp dữ liệu', go) : go(); }, 'Dọn');
+}
+$('#memTable').addEventListener('click', e => { const b = e.target.closest('[data-mj]'); if (!b) return; const j = memJobs(memCtx).find(x => x.id === b.dataset.mj); memRun([j.id], 'Dọn: ' + j.name); });
+$('#memRefresh').onclick = () => { memCtx = null; renderMem(); };
+$('#memClean').onclick = async () => { memCtx = await memMeasure(); const ids = memJobs(memCtx).filter(j => j.lv === 'g' && j.n && (!j.need || j.need())).map(j => j.id); if (!ids.length) return toast('Không có rác cần dọn'); memRun(ids, 'Dọn rác an toàn'); };
+PAGE_HELP.mem = ['Đo bộ nhớ tool đang dùng: trình duyệt máy này, file sổ, thư mục dữ liệu + sao lưu; biểu đồ từng phần.', 'PHẢI GIỮ: đăng ký, khoản thu, chốt quỹ, tiền bảo lưu, kết quả sát hạch… tool không cho dọn. DỌN CÓ ĐIỀU KIỆN: thùng rác > 90 ngày, dấu xoá đồng bộ > 180 ngày, file hỏng > 180 ngày (cần quyền quản lý). DỌN AN TOÀN: ảnh QR không dùng, nhật ký cũ (chuyển sang lưu trữ, không mất), bản sao nhật ký trong trình duyệt, dấu “máy đang mở” cũ.', '“Dọn rác an toàn…” dọn hết mục an toàn một lần; tool tự sao lưu sổ trước và ghi nhật ký.', 'Phần cuối kiểm tra tool hoạt động chính xác: toàn vẹn dữ liệu, thư mục, lưu trữ lâu dài, dung lượng, tốc độ.'];
