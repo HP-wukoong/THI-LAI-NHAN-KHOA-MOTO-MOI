@@ -45,7 +45,7 @@ function allocPays(r){
 /* ---------------- TIỀN BẢO LƯU (VẮNG / TRƯỢT) ----------------
    Quy định của trung tâm:
    · Lệ phí LT (60k) và phí duyệt hồ sơ (50k): KHÔNG hoàn, KHÔNG bảo lưu.
-   · Lệ phí Hình (70k): chỉ bảo lưu khi VẮNG CẢ 2 PHẦN, hoặc TRƯỢT LÝ THUYẾT ở đợt thi từ 01/07/2026 (thi tuần tự nên không được thi Hình).
+   · Lệ phí Hình (70k): chỉ bảo lưu khi VẮNG CẢ 2 PHẦN, hoặc TRƯỢT LÝ THUYẾT ở đợt thi sau 25/07/2026 (thi tuần tự nên không được thi Hình).
      Đạt LT (hoặc chỉ đăng ký Hình) mà vắng Hình → không bảo lưu.
    · Phí thẻ GPLX (115k) đã nộp: bảo lưu cho tới khi thi đạt (vắng hay trượt đều giữ).
    Tiền ở đợt cũ đã bàn giao cho công ty → đợt sau chỉ thu phần học viên phải đóng thêm. */
@@ -53,13 +53,13 @@ const creditsOf = cccd => (S.credits || []).filter(c => c.cccd === cccd && c.sta
 const creditLeft = (c, k) => Math.max(0, (c.items[k] || 0) - c.uses.filter(u => u.item === k).reduce((a, u) => a + u.amount, 0));
 const creditTotalLeft = c => Object.keys(c.items).reduce((a, k) => a + creditLeft(c, k), 0);
 const attemptAt = (cccd, date) => { const p = H.people.get(cccd); return p && p.attempts.find(a => a.date === date); };
-const SEQ_FROM = () => S.cfg.seqDate || '2026-07-01';
+const SEQ_FROM = () => S.cfg.seqDate || '2026-07-25'; /* thi tuần tự áp dụng cho đợt SAU ngày này */
 function creditPlan(r, a){
   if (!a || a.kq === 'D') return null;
   const al = allocPays(r), items = {}, hTaken = a.h === 'D' || a.h === 'T', why = [];
   if (al.paid.H && !hTaken) {
     if (a.lt === 'V') { items.H = al.paid.H; why.push('vắng cả LT và Hình'); }
-    else if (a.lt === 'T' && r.examDate >= SEQ_FROM()) { items.H = al.paid.H; why.push('trượt LT nên chưa được thi Hình'); }
+    else if (a.lt === 'T' && r.examDate > SEQ_FROM()) { items.H = al.paid.H; why.push('trượt LT nên chưa được thi Hình'); }
   }
   if (al.paid.GPLX115) { items.GPLX115 = al.paid.GPLX115; why.push('chưa đạt, giữ phí thẻ GPLX'); }
   return Object.keys(items).length ? { items, reason: `${C.RLABEL[a.lt] || '–'} LT / ${C.RLABEL[a.h] || '–'} Hình: ${why.join('; ')}` } : null;
@@ -131,7 +131,7 @@ function renderCredits(){
   const el = $('#crTable'); if (!el) return;
   const all = (S.credits || []).slice().sort((a, b) => (a.status === 'open' ? 0 : 1) - (b.status === 'open' ? 0 : 1) || b.createdAt.localeCompare(a.createdAt));
   const open = all.filter(c => c.status === 'open'), sum = open.reduce((a, c) => a + creditTotalLeft(c), 0);
-  $('#crSum').innerHTML = `<b>${open.length}</b> học viên đang có tiền bảo lưu, tổng <b>${money(sum)} đ</b>. Quy định: LT ${money(S.cfg.prices.LT)} và phí duyệt ${money(S.cfg.prices.DUYET)} không hoàn; lệ phí Hình ${money(S.cfg.prices.H)} chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ ${fd(SEQ_FROM())}); phí thẻ GPLX ${money(S.cfg.prices.GPLX)} đã nộp giữ đến khi thi đạt. Đợt sau chỉ thu phần học viên đóng thêm.`;
+  $('#crSum').innerHTML = `<b>${open.length}</b> học viên đang có tiền bảo lưu, tổng <b>${money(sum)} đ</b>. Quy định: LT ${money(S.cfg.prices.LT)} và phí duyệt ${money(S.cfg.prices.DUYET)} không hoàn; lệ phí Hình ${money(S.cfg.prices.H)} chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt sau ${fd(SEQ_FROM())}); phí thẻ GPLX ${money(S.cfg.prices.GPLX)} đã nộp giữ đến khi thi đạt. Đợt sau chỉ thu phần học viên đóng thêm.`;
   el.innerHTML = all.length ? `<table><tr><th>Học viên</th><th>CCCD</th><th>Từ đợt</th><th>Lý do</th><th class="num">Bảo lưu</th><th class="num">Đã dùng</th><th class="num">Còn lại</th><th>Tình trạng</th><th></th></tr>${all.map(c => { const tot = Object.values(c.items).reduce((a, b) => a + b, 0), left = creditTotalLeft(c), ar = activeReg(c.cccd);
     return `<tr class="${c.status === 'void' ? 'kdel' : ''}"><td><a href="#" data-q="${c.cccd}">${esc(c.name)}</a></td><td class="mono">${esc(mask(c.cccd))}</td><td class="mono">${fd(c.fromExam)}</td><td class="small">${esc(c.reason || '')}<div class="muted">${Object.entries(c.items).map(([k, v]) => ITEM[k] + ' ' + money(v)).join(' · ')}</div></td><td class="num">${money(tot)}</td><td class="num">${money(tot - left)}</td><td class="num"><b>${money(left)}</b></td>
       <td>${c.status === 'open' ? '<span class="pill p-part">Đang bảo lưu</span>' : c.status === 'used' ? '<span class="pill p-paid">Đã dùng hết</span>' : c.status === 'refunded' ? '<span class="pill p-cxl">Đã hoàn</span>' : c.status === 'passed' ? `<span class="pill p-paid">Đã thi đạt ${fd(c.passed)}</span>` : '<span class="pill p-due">Đã huỷ</span>'}${c.uses.length ? `<div class="small muted">${c.uses.map(u => { const r = S.regs.find(x => x.id === u.regId); return `→ đợt ${fd(r && r.examDate)} ${ITEM[u.item]} ${money(u.amount)}`; }).join('<br>')}</div>` : ''}</td>
@@ -521,7 +521,7 @@ const PAGE_HELP = {
   ds: ['Toàn bộ thí sinh trong dữ liệu kết quả: trạng thái, phần cần thi, hạn bảo lưu từng phần.', 'Lọc theo tình trạng, ngày thi lần cuối, phần cần thi; xuất Excel.'],
   dsoat: ['So kết quả kỳ thi của Hội đồng với danh sách đăng ký trong tool: ai thi mà chưa thu tiền (thu sót), ai đăng ký mà không có tên, lệch lệ phí.', 'Bổ sung đăng ký cho người thu sót ngay trên bảng.'],
   tk: ['Tổng kết tiền thi lại theo đợt / nhóm đối tượng / phần thi / từng khoản (duyệt HS, LT, Hình, thẻ GPLX).', 'Chỉ tính tiền học viên thực đóng thêm; tiền bảo lưu chuyển từ đợt trước (đã bàn giao) ghi riêng, không tính lại.', 'Xuất Excel tổng kết, in Biên bản bàn giao lệ phí (số tiền bằng chữ).'],
-  thu: ['Sổ thu: phải thu, đã thu, còn nợ từng đăng ký; nhật ký phiếu thu / chi (chỉ ghi thêm, không sửa).', 'Đối chiếu sao kê ngân hàng: nạp file sao kê, tự ghép CCCD trong nội dung chuyển khoản, ghi thu hàng loạt không trùng.', 'Tiền bảo lưu: Hình 70k (vắng cả 2 phần / trượt LT từ 01/07/2026), thẻ GPLX 115k (giữ đến khi đạt). Tự trừ khi đăng ký đợt sau.', 'Tiền cần xử lý: người đã nộp nhưng không có tên trong kết quả.'],
+  thu: ['Sổ thu: phải thu, đã thu, còn nợ từng đăng ký; nhật ký phiếu thu / chi (chỉ ghi thêm, không sửa).', 'Đối chiếu sao kê ngân hàng: nạp file sao kê, tự ghép CCCD trong nội dung chuyển khoản, ghi thu hàng loạt không trùng.', 'Tiền bảo lưu: Hình 70k (vắng cả 2 phần / trượt LT sau 25/07/2026), thẻ GPLX 115k (giữ đến khi đạt). Tự trừ khi đăng ký đợt sau.', 'Tiền cần xử lý: người đã nộp nhưng không có tên trong kết quả.'],
   dot: ['Khai báo ngày sát hạch; chỉ đăng ký được vào đợt có trong danh sách.', 'Mỗi đợt: tên, giờ có mặt, địa điểm (in giấy hẹn), giới hạn số người thi lại (nhắc khi gần đủ, chặn khi đủ), mã QR.', 'Đợt đã có kết quả: nút “Chuyển Trượt/Vắng…”. Đợt sắp thi: “In giấy hẹn cả đợt”.'],
   data: ['1. Nạp file kết quả sát hạch của Hội đồng sau mỗi kỳ (nhiều file cùng lúc được).', '2. Chọn thư mục lưu dữ liệu (bắt buộc để thu tiền); sao lưu tự động và quản lý file sao lưu.', '3. Quy tắc tính phí, bảng giá. Tài khoản ngân hàng / QR / giấy hẹn. Người dùng và phân quyền. Thùng rác. Kiểm tra toàn vẹn.'],
   log: ['Nhật ký mọi thao tác: ai làm, lúc nào, nội dung. Dùng để tra lại khi có tranh chấp.'],
@@ -541,7 +541,7 @@ const HINTS = [
   [['#t-tl', 'Đăng ký hàng loạt'], 'Dành cho đăng ký hộ nhiều người. Copy vùng Excel (CCCD bắt buộc; Họ tên, SĐT / người nhận, Số tiền, Ngày ĐK nếu có) dán vào ô, hoặc chọn file. Tool kiểm tra: CCCD đủ 12 số (tự thêm 0 nếu Excel làm mất), mã tỉnh, năm sinh, họ tên khớp dữ liệu, trùng dòng, đã đạt / rút / đang có đăng ký, giới hạn đợt. Dòng vàng về CCCD / tên không chọn sẵn. Gán SĐT và tiền (chưa nộp / nộp đủ / theo cột / số cố định) cho cả danh sách rồi sửa từng dòng; xác nhận mới đăng ký và ghi thu.'],
   ['#tlBulkPay', 'Ghi thu đủ số còn nợ cho tất cả dòng đã tick (cùng ngày, cùng hình thức).'],
   [['#t-thu', 'Đối chiếu sao kê'], 'Nạp file Excel sao kê tài khoản. Tool lấy các khoản tiền vào, tìm CCCD (12 số) trong nội dung chuyển khoản để ghép học viên còn nợ, ghi thu dạng chuyển khoản kèm mã giao dịch. Nạp lại cùng file không bị ghi trùng. Nút “Tải file sao kê mẫu” để tập.'],
-  [['#t-thu', 'Tiền bảo lưu'], 'LT 60k và phí duyệt 50k không hoàn. Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt từ 01/07/2026). Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt. Tool tự tạo khi nạp kết quả, tự trừ khi đăng ký đợt sau (phiếu BL, không vào tiền mặt). Có nút Hoàn tiền / Huỷ.'],
+  [['#t-thu', 'Tiền bảo lưu'], 'LT 60k và phí duyệt 50k không hoàn. Hình 70k chỉ bảo lưu khi vắng cả 2 phần hoặc trượt LT (đợt sau 25/07/2026). Phí thẻ GPLX 115k đã nộp giữ đến khi thi đạt. Tool tự tạo khi nạp kết quả, tự trừ khi đăng ký đợt sau (phiếu BL, không vào tiền mặt). Có nút Hoàn tiền / Huỷ.'],
   [['#t-thu', 'Tiền cần xử lý'], 'Người đã nộp tiền nhưng file kết quả không có tên: chọn bảo lưu toàn bộ, hoàn tiền, hoặc giữ nguyên.'],
   [['#t-thu', 'Nhật ký thu'], 'Mọi phiếu thu (PT), phiếu chi (PC), phiếu chuyển bảo lưu (BL) có số liên tục, không sửa được; xoá nhầm vào Thùng rác.'],
   [['#t-dot', 'Các đợt sát hạch'], 'Thêm / sửa đợt: ngày, tên, giờ có mặt, địa điểm, giới hạn số người thi lại. Có giới hạn: tool nhắc khi còn ít chỗ (mặc định 10) và chặn nhập thêm khi đủ; để trống = không giới hạn. QR VietQR tự tạo (in sắc nét), có thể dùng ảnh QR riêng.'],
@@ -1156,3 +1156,38 @@ $('#memTable').addEventListener('click', e => { const b = e.target.closest('[dat
 $('#memRefresh').onclick = () => { memCtx = null; renderMem(); };
 $('#memClean').onclick = async () => { memCtx = await memMeasure(); const ids = memJobs(memCtx).filter(j => j.lv === 'g' && j.n && (!j.need || j.need())).map(j => j.id); if (!ids.length) return toast('Không có rác cần dọn'); memRun(ids, 'Dọn rác an toàn'); };
 PAGE_HELP.mem = ['Đo bộ nhớ tool đang dùng: trình duyệt máy này, file sổ, thư mục dữ liệu + sao lưu; biểu đồ từng phần.', 'PHẢI GIỮ: đăng ký, khoản thu, chốt quỹ, tiền bảo lưu, kết quả sát hạch… tool không cho dọn. DỌN CÓ ĐIỀU KIỆN: thùng rác > 90 ngày, dấu xoá đồng bộ > 180 ngày, file hỏng > 180 ngày (cần quyền quản lý). DỌN AN TOÀN: ảnh QR không dùng, nhật ký cũ (chuyển sang lưu trữ, không mất), bản sao nhật ký trong trình duyệt, dấu “máy đang mở” cũ.', '“Dọn rác an toàn…” dọn hết mục an toàn một lần; tool tự sao lưu sổ trước và ghi nhật ký.', 'Phần cuối kiểm tra tool hoạt động chính xác: toàn vẹn dữ liệu, thư mục, lưu trữ lâu dài, dung lượng, tốc độ.'];
+
+/* ---------------- TÍNH LẠI LỆ PHÍ TẤT CẢ (đăng ký chưa thi) theo quy tắc hiện hành ---------------- */
+function recalcPlan(){
+  const out = [];
+  for (const r of S.regs) {
+    if (r.kind !== 'lai' || r.cancelled || !r.examDate || examOutcome(r).k !== 'wait' || dotDone(r.examDate)) continue;
+    const ev = evalFor(r.cccd, r.examDate); if (!ev || ev.status === 'DAT' || (ev.uncertain && ev.uncertain.length && !r.uncertainOk)) continue;
+    const f = C.fee(ev, S.cfg, r.regDate), extra = Object.values(r.extra || {}).reduce((a, b) => a + b, 0), t = regTotals(r);
+    const newDue = f.total + extra - (r.adjust || 0), partsCh = ev.need.join('+') !== r.parts.join('+'), feeCh = newDue !== t.due;
+    if (!partsCh && !feeCh) continue;
+    out.push({ r, ev, f, oldDue: t.due, newDue, paid: t.paid, diff: newDue - t.paid, partsCh, why: f.rule });
+  }
+  return out.sort((a, b) => (b.diff > 0) - (a.diff > 0) || (a.r.examDate || '').localeCompare(b.r.examDate || '') || C.viNameCmp(a.r.name, b.r.name));
+}
+window.recalcAllDlg = () => {
+  const P = recalcPlan();
+  if (!P.length) { S.cfg.mocV2Pending = false; save(); return dialog('<h2>Lệ phí đã đúng quy tắc</h2><p>Tất cả đăng ký chưa thi đều đã tính đúng theo quy tắc hiện hành. Không ai phải thu thêm.</p>', () => {}, 'Đóng'); }
+  const more = P.filter(x => x.diff > 0), over = P.filter(x => x.diff < 0), sumMore = more.reduce((a, x) => a + x.diff, 0), sumOver = over.reduce((a, x) => a - x.diff, 0);
+  dialog(`<h2>Tính lại lệ phí theo quy tắc hiện hành</h2>
+    <p class="small">Mốc +GPLX: thi gần nhất từ <b>${fd(S.cfg.cutoffBoth)}</b> trở về trước → cộng ${money(S.cfg.prices.GPLX)}; thi tuần tự áp dụng sau ${fd(S.cfg.seqDate)}. Chỉ xét đăng ký <b>chưa thi</b> (đợt đã thi giữ nguyên vì tiền đã bàn giao).</p>
+    <div class="kpis" style="margin:8px 0"><div class="kpi"><span>Đăng ký đổi lệ phí / phần thi</span><b>${P.length}</b></div><div class="kpi bad"><span>Phải thu thêm</span><b>${more.length} người · ${money(sumMore)}</b></div><div class="kpi warn"><span>Thu thừa</span><b>${over.length} người · ${money(sumOver)}</b></div></div>
+    <div class="tw" style="max-height:48vh"><table><tr><th>Họ tên</th><th>Đợt</th><th>Đang ghi</th><th>Tính lại</th><th class="num">Đã thu</th><th class="num">Chênh lệch</th><th>Căn cứ</th></tr>
+    ${P.map(x => `<tr><td>${esc(x.r.name)}<div class="small muted mono">${esc(mask(x.r.cccd))}</div></td><td class="mono">${fd(x.r.examDate)}</td><td>${ndLabel(x.r.parts)}<div class="small mono">${money(x.oldDue)}</div></td><td>${ndLabel(x.ev.need)}<div class="small mono"><b>${money(x.newDue)}</b></div></td><td class="num mono">${money(x.paid)}</td>
+      <td class="num mono ${x.diff > 0 ? 'r-T' : x.diff < 0 ? 'r-D' : ''}"><b>${x.diff > 0 ? 'thu thêm ' + money(x.diff) : x.diff < 0 ? 'thừa ' + money(-x.diff) : 'đủ'}</b></td><td class="small" style="white-space:normal;min-width:220px">${esc(x.why)}</td></tr>`).join('')}</table></div>
+    <div class="row" style="margin-top:8px"><button type="button" class="b s" id="rcExp">Xuất danh sách (Excel)</button><span class="small muted">Áp dụng: cập nhật phần thi + lệ phí, tiền đã thu giữ nguyên → người thiếu hiện “còn nợ”, thừa thì hoàn ở Sổ thu.</span></div>`,
+    () => requireAdmin('Tính lại lệ phí tất cả', () => {
+      let n = 0; for (const x of P) if (fixReg(x.r, 'Tính lại tất cả theo quy tắc hiện hành:')) n++;
+      S.cfg.mocV2Pending = false; logA('Tính lại lệ phí tất cả', '', '', `${n} đăng ký · thu thêm ${more.length} người ${money(sumMore)} · thừa ${over.length} người ${money(sumOver)}`); save();
+      $('#tlDot').value = '*'; $('#tlPay').value = 'owe'; $('#tlKq').value = ''; switchTab('tl'); renderAll();
+      toast(`Đã tính lại ${n} đăng ký — đang lọc những người còn thiếu tiền`, 5000); }), `Áp dụng cho ${P.length} đăng ký`);
+  $('#rcExp').onclick = () => exportXlsx(`TINH_LAI_LE_PHI_${todayISO()}.xlsx`, [['Tinh lai', P.map((x, i) => ({ 'STT': i + 1, 'Họ và tên': x.r.name, 'CCCD': x.r.cccd, 'SĐT / người nhận': x.r.phone || '', 'Đợt thi': fd(x.r.examDate), 'Đang ghi': ndLabel(x.r.parts), 'Lệ phí cũ': x.oldDue, 'Tính lại': ndLabel(x.ev.need), 'Lệ phí mới': x.newDue, 'Đã thu': x.paid, 'Phải thu thêm': x.diff > 0 ? x.diff : '', 'Thu thừa': x.diff < 0 ? -x.diff : '', 'Căn cứ': x.why })), { title: 'Tính lại lệ phí theo quy tắc hiện hành', wide: { 'Căn cứ': 60 } }]]);
+};
+$('#tlRecalc').onclick = () => recalcAllDlg();
+/* Vừa đổi mốc 25/07/2026: nhắc tính lại một lần */
+setTimeout(() => { try { if (S.cfg.mocV2Pending && H.people.size && recalcPlan().length) toast('Mốc phí GPLX đã đổi sang 25/07/2026 — bấm “Tính lại lệ phí tất cả…” ở tab Đăng ký thi lại để xem ai cần thu thêm', 8000); } catch(e){} }, 3000);

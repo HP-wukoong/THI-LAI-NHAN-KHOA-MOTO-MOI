@@ -34,6 +34,8 @@ function maxNo(list, kind, year){ let m = 0; const re = new RegExp(`^${kind}-${y
 function migrate(s){
   if (!s || typeof s !== 'object') return s;
   const from = s.schema || 1;
+  /* Đổi mốc: 01/07/2026 → 25/07/2026 (thi từ 25/07 trở về trước +115k; sau 25/07 hình thức mới) */
+  if (s.cfg && !s.cfg.mocV2) { for (const k of ['cutoff', 'cutoffBoth', 'cutoffLT', 'seqDate']) if (!s.cfg[k] || s.cfg[k] === '2026-07-01' || s.cfg[k] === '2026-07-25') s.cfg[k] = '2026-07-25'; s.cfg.mocV2 = true; s.cfg.mocV2Pending = true; }
   s.regs = s.regs || []; s.pays = s.pays || []; s.trash = s.trash || []; s.dots = s.dots || []; s.withdrawals = s.withdrawals || []; s.log = s.log || [];
   s.contacts = s.contacts || {}; s.scanAddr = s.scanAddr || {}; s.khoa = s.khoa || []; s.closings = s.closings || []; s.users = s.users || []; s.seq = s.seq || { PT: {}, PC: {} };
   s.seq.PT = s.seq.PT || {}; s.seq.PC = s.seq.PC || {}; s.seq.BL = s.seq.BL || {}; s.credits = s.credits || []; s.cccdChk = s.cccdChk || [];

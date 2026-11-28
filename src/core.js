@@ -2,10 +2,11 @@
 (function (root) {
   const DEFAULT_CFG = {
     prices: { HP: 400000, LT: 60000, H: 70000, GPLX: 115000, DUYET: 50000 },
-    cutoff: '2026-07-25',      // mốc 115k khi rớt 1 phần (LT hoặc Hình)
-    cutoffBoth: '2026-07-01',  // mốc 115k khi rớt cả 2 phần (LT + Hình)
-    cutoffLT: '2026-07-01',    // mốc 115k khi chỉ thu lại LT
-    seqDate: '2026-07-01',     // từ đợt này: đạt LT mới được thi Hình → trượt/vắng LT thì Hình không bị tính phí
+    /* Mốc 25/07/2026: thi gần nhất TỪ NGÀY NÀY TRỞ VỀ TRƯỚC (kể cả 25/07) → thu thêm phí GPLX 115k; SAU ngày này → hình thức mới */
+    cutoff: '2026-07-25',      // mốc 115k khi rớt Hình
+    cutoffBoth: '2026-07-25',  // mốc 115k khi rớt cả 2 phần (LT + Hình)
+    cutoffLT: '2026-07-25',    // mốc 115k khi chỉ thu lại LT
+    seqDate: '2026-07-25',     // SAU ngày này: đạt LT mới được thi Hình → trượt/vắng LT thì Hình không bị tính phí
     extraBatches: ['2026-07-02'], // đợt ngoại lệ: thi lại luôn cộng phí GPLX
     basis: 'exam',             // 'exam' = ngày thi rớt gần nhất | 'reg' = ngày đăng ký thi lại
     absentAsFail: true,        // Vắng = phải nộp lệ phí lại phần đó
@@ -258,21 +259,21 @@
     const last = res.last || {};
     let blockedH = false;
     // Thi tuần tự: trượt/vắng LT thì không được thi Hình → lệ phí Hình đã nộp còn nguyên, không thu lại
-    if (last.date && last.date >= cfg.seqDate && (last.lt === 'T' || last.lt === 'V') && last.h !== 'T' && last.h !== 'D'
+    if (last.date && last.date > cfg.seqDate && (last.lt === 'T' || last.lt === 'V') && last.h !== 'T' && last.h !== 'D'
         && parts.includes('LT') && parts.includes('H') && !(res.expired || []).includes('H')) { parts = parts.filter(p => p !== 'H'); blockedH = true; }
     for (const p of parts) items[p] = cfg.prices[p];
     const basisDate = cfg.basis === 'reg' ? (regDate || null) : res.lastDate;
     const special = parts.length && (cfg.extraBatches || []).includes(res.lastDate);
     const both = parts.length === 2;
     const cut = both ? cfg.cutoffBoth : (parts[0] === 'LT' ? cfg.cutoffLT : cfg.cutoff);
-    const before = !!(parts.length && basisDate && basisDate < cut);
+    const before = !!(parts.length && basisDate && basisDate <= cut); /* trong ngày mốc hoặc trước đó: + phí GPLX */
     if (special || before) items.GPLX115 = cfg.prices.GPLX;
     if (cfg.prices.DUYET) items.DUYET = cfg.prices.DUYET; // phí duyệt hồ sơ: mọi lượt thi lại
     const total = Object.values(items).reduce((s, v) => s + v, 0);
     let rule;
     if (!parts.length) rule = 'không thu lại lệ phí';
     else {
-      rule = (both ? 'rớt LT + Hình' : 'thu lại ' + (parts[0] === 'LT' ? 'LT' : 'Hình')) + ', mốc ' + fmtDate(cut) + (before ? ' → trước mốc: + phí ' + money(cfg.prices.GPLX) : ' → sau mốc: chỉ phần rớt');
+      rule = (both ? 'rớt LT + Hình' : 'thu lại ' + (parts[0] === 'LT' ? 'LT' : 'Hình')) + ', mốc ' + fmtDate(cut) + (before ? ' → từ mốc trở về trước: + phí ' + money(cfg.prices.GPLX) : ' → sau mốc: chỉ phần rớt');
       if (special && !before) rule = 'đợt ' + fmtDate(res.lastDate) + ' là đợt ngoại lệ → + phí ' + money(cfg.prices.GPLX);
     }
     if (blockedH) rule += '. Hình chưa được thi vì trượt/vắng LT, lệ phí Hình đã nộp được giữ lại';

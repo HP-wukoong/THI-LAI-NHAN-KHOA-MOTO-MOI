@@ -193,11 +193,11 @@ $('#bcExport').onclick = () => { const d = bcData(), stampTxt = `${d.label} (${f
 function rulesHtml(){
   const c = S.cfg, P = c.prices, d = fd;
   const rows = [
-    ['Rớt / vắng LT, đợt thi gần nhất TỪ ' + d(c.seqDate) + ' (thi tuần tự, chưa được thi Hình)', 'LT + duyệt HS', P.LT + P.DUYET],
-    ['Rớt Hình (LT đã đạt), thi gần nhất TỪ ' + d(c.cutoff), 'Hình + duyệt HS', P.H + P.DUYET],
-    ['Rớt Hình, thi gần nhất TRƯỚC ' + d(c.cutoff), 'Hình + GPLX + duyệt HS', P.H + P.GPLX + P.DUYET],
-    ['Rớt LT (Hình đạt), thi gần nhất TRƯỚC ' + d(c.cutoffLT), 'LT + GPLX + duyệt HS', P.LT + P.GPLX + P.DUYET],
-    ['Rớt cả 2 phần, thi gần nhất TRƯỚC ' + d(c.cutoffBoth), 'LT + Hình + GPLX + duyệt HS', P.LT + P.H + P.GPLX + P.DUYET],
+    ['Rớt / vắng LT, đợt thi gần nhất SAU ' + d(c.seqDate) + ' (thi tuần tự, chưa được thi Hình)', 'LT + duyệt HS', P.LT + P.DUYET],
+    ['Rớt Hình (LT đã đạt), thi gần nhất SAU ' + d(c.cutoff), 'Hình + duyệt HS', P.H + P.DUYET],
+    ['Rớt Hình, thi gần nhất từ ' + d(c.cutoff) + ' trở về trước', 'Hình + GPLX + duyệt HS', P.H + P.GPLX + P.DUYET],
+    ['Rớt LT (Hình đạt), thi gần nhất từ ' + d(c.cutoffLT) + ' trở về trước', 'LT + GPLX + duyệt HS', P.LT + P.GPLX + P.DUYET],
+    ['Rớt cả 2 phần, thi gần nhất từ ' + d(c.cutoffBoth) + ' trở về trước', 'LT + Hình + GPLX + duyệt HS', P.LT + P.H + P.GPLX + P.DUYET],
     ['Phần đã đạt nhưng HẾT bảo lưu (' + c.reserveMonths + ' tháng) trước ngày thi của đợt đăng ký', 'thi lại cả phần đó', null],
     ...(c.extraBatches || []).map(b => ['Thi gần nhất ở đợt ' + d(b) + ' (ngoại lệ)', 'luôn cộng thêm GPLX', null])];
   return `<table class="k" style="border-collapse:collapse;width:100%"><tr><th>Khoản</th><th style="text-align:right">Đơn giá (đ)</th></tr><tr><td>Lệ phí sát hạch lý thuyết (LT)</td><td style="text-align:right">${money(P.LT)}</td></tr><tr><td>Lệ phí sát hạch hình</td><td style="text-align:right">${money(P.H)}</td></tr><tr><td>Phí cấp thẻ GPLX</td><td style="text-align:right">${money(P.GPLX)}</td></tr><tr><td>Phí duyệt hồ sơ (mọi lượt thi lại)</td><td style="text-align:right">${money(P.DUYET)}</td></tr></table>

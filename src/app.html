@@ -332,6 +332,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <label class="f">Kết quả đợt<select id="tlKq"><option value="">Tất cả</option><option value="wait">Chưa có kết quả</option><option value="D">Đạt</option><option value="T">Trượt</option><option value="V">Vắng</option><option value="none">Không có tên trong KQ</option></select></label>
       <label class="f">SĐT / người nhận<select id="tlPhone"><option value="">Tất cả</option></select></label>
       <label class="f" style="flex:1;min-width:160px">Tìm<input id="tlSearch" placeholder="CCCD / tên / SĐT"></label>
+      <button class="b" id="tlRecalc" title="Tính lại lệ phí mọi đăng ký chưa thi theo quy tắc hiện hành, xem ai còn thiếu">Tính lại lệ phí tất cả…</button>
       <button class="b p" id="tlExportForm">Xuất DS thi lại (mẫu chuẩn)</button><button class="b" id="tlExport">Xuất bảng chi tiết</button>
     </div>
     <div class="row" style="margin-top:10px" id="tlBulkBar">
@@ -637,10 +638,10 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
     </div>
     <div class="row" style="margin-top:10px">
       <label class="f">Ngày sát hạch dự kiến<input type="date" id="cExam"></label>
-      <label class="f">Mốc +GPLX khi thu lại LT<input type="date" id="cCutLT"></label>
-      <label class="f">Mốc +GPLX khi thu lại Hình<input type="date" id="cCut"></label>
-      <label class="f">Mốc +GPLX khi thu lại cả 2<input type="date" id="cCutBoth"></label>
-      <label class="f">Thi tuần tự (đạt LT mới thi Hình) từ<input type="date" id="cSeq"></label>
+      <label class="f" title="Thi gần nhất trong ngày này hoặc trước đó → + phí GPLX">Mốc +GPLX khi thu lại LT (≤ ngày này)<input type="date" id="cCutLT"></label>
+      <label class="f" title="Thi gần nhất trong ngày này hoặc trước đó → + phí GPLX">Mốc +GPLX khi thu lại Hình (≤ ngày này)<input type="date" id="cCut"></label>
+      <label class="f" title="Thi gần nhất trong ngày này hoặc trước đó → + phí GPLX">Mốc +GPLX khi thu lại cả 2 (≤ ngày này)<input type="date" id="cCutBoth"></label>
+      <label class="f" title="Đợt thi gần nhất sau ngày này: trượt/vắng LT thì chưa thu Hình">Thi tuần tự áp dụng SAU ngày<input type="date" id="cSeq"></label>
       <label class="f">Đợt ngoại lệ luôn +GPLX<input id="cExtra" placeholder="02/07/2026" style="width:150px"></label>
       <label class="f">Căn cứ so với mốc<select id="cBasis"><option value="exam">Ngày thi rớt gần nhất</option><option value="reg">Ngày đăng ký thi lại</option></select></label>
       <label class="f">Người vắng thi<select id="cAbs"><option value="1">Nộp lại lệ phí phần vắng</option><option value="0">Không thu lại (chuyển lệ phí)</option></select></label>
@@ -648,7 +649,7 @@ td.act{white-space:nowrap} td.act .b{margin-right:3px}
       <label class="f">Báo “sắp hết hạn” trước<input id="cSoon" class="mono" inputmode="numeric" style="width:80px"></label>
       <button class="b p" id="cSave">Áp dụng</button>
     </div>
-    <p class="small muted" style="margin-top:10px">Cách tính: thi lại phần nào thì thu lệ phí phần đó. Từ đợt 01/07/2026 thi tuần tự: trượt hoặc vắng LT thì không được thi Hình, nên chỉ thu lại LT (lệ phí Hình đã nộp được giữ). Thu thêm phí cấp GPLX khi ngày căn cứ trước mốc tương ứng: thu lại LT trước 01/07/2026, thu lại Hình trước 25/07/2026, thu lại cả 2 trước 01/07/2026. Riêng đợt 02/07/2026 thi lại luôn cộng phí GPLX. Mọi lượt thi lại đều cộng phí duyệt hồ sơ. Bảo lưu tính riêng cho LT và Hình, kể từ ngày <b>Đạt</b> phần đó; dòng “X” không gia hạn. Phần đã hết hạn tính đến ngày sát hạch dự kiến phải thi lại. Thay đổi ở đây chỉ áp dụng cho lượt đăng ký <b>mới</b>; số tiền của lượt đã đăng ký được giữ nguyên.</p>
+    <p class="small muted" style="margin-top:10px">Cách tính: thi lại phần nào thì thu lệ phí phần đó. Mốc 25/07/2026: thi gần nhất <b>trong ngày 25/07/2026 hoặc trước đó</b> → thu thêm phí cấp GPLX 115.000; <b>sau 25/07/2026</b> → hình thức mới: chỉ thu phần rớt, thi tuần tự (trượt hoặc vắng LT thì chưa được thi Hình, chỉ thu lại LT, lệ phí Hình đã nộp được giữ). Các mốc chỉnh ở ô bên trên. Mọi lượt thi lại đều cộng phí duyệt hồ sơ. Bảo lưu tính riêng cho LT và Hình, kể từ ngày <b>Đạt</b> phần đó; dòng “X” không gia hạn. Phần đã hết hạn tính đến ngày sát hạch dự kiến phải thi lại. Thay đổi ở đây chỉ áp dụng cho lượt đăng ký <b>mới</b>; số tiền của lượt đã đăng ký được giữ nguyên.</p>
     <div class="alert" style="margin-top:8px">Mốc 25/07/2026, cách xử lý người vắng thi và thời hạn bảo lưu là quy tắc trung tâm đang áp dụng. Hãy đối chiếu quy định hiện hành trước khi thu tiền hoặc trả hồ sơ.</div>
   </div>
   <div class="panel"><h2>Tài khoản nhận tiền · mã QR · giấy hẹn</h2><div id="bankPanel"></div></div>
@@ -1357,8 +1358,9 @@ function dialog(html, onOk, okLabel){
 }
 const ORG = 'CÔNG TY CP ĐÀO TẠO VÀ DỊCH VỤ GTVT BÌNH ĐỊNH', ORG_SITE = 'CSHN';
 /* ===== PHIÊN BẢN ===== */
-const APP_VERSION = '3.13.1', APP_DATE = '09/11/2026';
+const APP_VERSION = '3.14.0', APP_DATE = '09/11/2026';
 const CHANGELOG = [
+  ['3.14.0', '28/11/2026', ['Đổi mốc 01/07/2026 → 25/07/2026: thi gần nhất trong ngày 25/07/2026 hoặc trước đó → thu thêm phí GPLX 115.000; sau 25/07/2026 → hình thức mới (chỉ phần rớt, thi tuần tự). Cài đặt cũ tự chuyển sang mốc mới', 'Nút “Tính lại lệ phí tất cả…” ở Đăng ký thi lại: xem trước ai đổi lệ phí, ai phải thu thêm / thừa, xuất Excel, áp dụng rồi lọc ngay người còn thiếu']],
   ['3.13.1', '27/11/2026', ['Sắp xếp tên theo bảng chữ cái đồng nhất với TOOLS BC1+BC2+SBD (quy tắc mới bản 2.9): tên riêng → họ → tên đệm; A/Ă/Â, D/Đ, U/Ư tính chung; dấu thanh không dấu → huyền → sắc → hỏi → ngã → nặng; bằng nhau thì chữ không mũ trước (AN trước ĂN trước ÂN). Áp dụng cho mọi danh sách và file xuất (DS thi lại mẫu chuẩn, bảng chi tiết, tổng kết, đối soát…)']],
   ['3.13.0', '27/11/2026', ['Mục mới “Bộ nhớ & dọn dẹp”: đo dung lượng trình duyệt, thư mục dữ liệu và từng phần của sổ; biểu đồ trực quan; phân loại PHẢI GIỮ / DỌN CÓ ĐIỀU KIỆN / DỌN AN TOÀN kèm giải thích; dọn rác an toàn một nút (tự sao lưu trước, ghi nhật ký); kiểm tra tool hoạt động chính xác (toàn vẹn dữ liệu, số phiếu, lưu trữ bền vững)']],
   ['3.12.3', '23/11/2026', ['Nhớ đợt vừa đăng ký (★): người kế tiếp chọn sẵn đợt đó; đợt đó đủ số lượng / đã thi thì tự về đợt gần nhất còn chỗ']],
@@ -1896,7 +1898,7 @@ const PAGES = {
   ds: ['Danh sách & bảo lưu', 'Toàn bộ thí sinh trong dữ liệu kết quả, trạng thái và hạn bảo lưu'],
   cccd: ['Sai sót CCCD', 'Tự động lọc mọi trường hợp CCCD có dấu hiệu sai, trùng người, khác tên trong dữ liệu sát hạch và đăng ký'],
   dsoat: ['Đối soát kỳ thi', 'So kết quả của Hội đồng với đăng ký và tiền thu trong tool'],
-  tk: ['Tổng kết tiền thi lại', 'Thống kê tiền thi lại theo đợt, theo nhóm trước / từ mốc 01/07/2026, xuất bảng tổng kết'],
+  tk: ['Tổng kết tiền thi lại', 'Thống kê tiền thi lại theo đợt, theo nhóm đến / sau mốc 25/07/2026, xuất bảng tổng kết'],
   thu: ['Sổ thu', 'Khoản phải thu, đã thu, còn nợ và nhật ký thu / hoàn'],
   dot: ['Đợt thi', 'Ngày sát hạch dự kiến, mã QR từng đợt, tổng hợp tiền theo đợt'],
   data: ['Dữ liệu & cài đặt', 'Nạp file kết quả, nơi lưu dữ liệu, quy tắc phí, mật khẩu, thùng rác'],
@@ -2275,13 +2277,13 @@ function paidByItem(r){ const a = allocPays(r), due = {}, paid = {}, bl = {}; a.
 const blOf = r => S.pays.filter(p => p.regId === r.id && p.method === 'BL').reduce((s, p) => s + p.amount, 0);
 const cashTotals = r => { const t = regTotals(r), bl = blOf(r); return Object.assign({}, t, { paid: t.paid - bl, due: t.due - bl, bl }); };
 function baseDateOf(r){ const p = H.people.get(r.cccd); if (!p) return ''; const prior = p.attempts.filter(a => !r.examDate || a.date < r.examDate); return prior.length ? prior[prior.length - 1].date : ''; }
-const tkCut = () => $('#tkCut').value || S.cfg.cutoffBoth || '2026-07-01';
-const grpLabel = (g, long) => g === 'A' ? (long ? `A. Thi lần cuối TRƯỚC ngày ${fd(tkCut())}` : `Trước ${fd(tkCut())}`) : (long ? `B. Thi lần cuối TỪ ngày ${fd(tkCut())} trở đi` : `Từ ${fd(tkCut())}`);
+const tkCut = () => $('#tkCut').value || S.cfg.cutoffBoth || '2026-07-25';
+const grpLabel = (g, long) => g === 'A' ? (long ? `A. Thi lần cuối từ ngày ${fd(tkCut())} trở về trước (có phí GPLX)` : `Đến ${fd(tkCut())}`) : (long ? `B. Thi lần cuối SAU ngày ${fd(tkCut())}` : `Sau ${fd(tkCut())}`);
 let tkRows = [];
 function tkCollect(){
   const dot = $('#tkDot').value, grp = $('#tkGrp').value, need = $('#tkNeed').value, pay = $('#tkPay').value, cut = tkCut();
   return S.regs.filter(r => r.kind === 'lai' && (!r.cancelled || regTotals(r).paid !== 0) && (dot === '*' || (r.examDate || '') === dot))
-    .map(r => { const t = cashTotals(r), pb = paidByItem(r), bd = baseDateOf(r); return { r, t, pb, bd, g: bd && bd < cut ? 'A' : 'B', nd: ndLabel(r.parts) }; })
+    .map(r => { const t = cashTotals(r), pb = paidByItem(r), bd = baseDateOf(r); return { r, t, pb, bd, g: bd && bd <= cut ? 'A' : 'B', nd: ndLabel(r.parts) }; })
     .filter(x => (!grp || x.g === grp) && (!need || x.r.parts.join('+') === need)
       && (!pay || (pay === 'paid' ? x.t.left === 0 && x.t.paid + x.t.bl > 0 : pay === 'some' ? x.t.paid + x.t.bl > 0 : pay === 'owe' ? x.t.left > 0 : x.t.paid + x.t.bl <= 0)))
     .sort((a, b) => a.g.localeCompare(b.g) || (a.r.examDate || '').localeCompare(b.r.examDate || '') || C.viNameCmp(a.r.name, b.r.name));
@@ -2299,7 +2301,7 @@ function renderTk(){
   const ds = [...new Set(S.regs.filter(r => r.kind === 'lai').map(r => r.examDate || ''))].sort().reverse();
   sel.innerHTML = '<option value="*">Tất cả các đợt</option>' + ds.map(d => `<option value="${d}">${esc(dotLabel(d))}</option>`).join('');
   sel.value = ds.includes(cur) || cur === '*' ? cur : (ds[0] ?? '*');
-  if (!$('#tkCut').value) $('#tkCut').value = S.cfg.cutoffBoth || '2026-07-01';
+  if (!$('#tkCut').value) $('#tkCut').value = S.cfg.cutoffBoth || '2026-07-25';
   tkRows = tkCollect(); const items = tkSel();
   const all = tkAgg(tkRows, items), A = tkAgg(tkRows.filter(x => x.g === 'A'), items), B = tkAgg(tkRows.filter(x => x.g === 'B'), items);
   const selPaid = ag => items.reduce((s, k) => s + ag.it[k].amt, 0);
